@@ -62,6 +62,30 @@ The second partition holds the extracted LiberNT `Windows` tree, including ARM64
 - Keep Mariko hardware knowledge out of common kernel code. Do not transplant incompatible Windows driver code or Linux GPL code; follow the upstream `AGENTS.md` clean-room and licensing policy.
 - No automatic upstream PR or claim of driver/OS functionality until the relevant physical tests exist.
 
+## R5 source-level diagnostics (not yet built)
+
+Experimental source-only FreeLoader checkpoints have been added to
+`boot/freeldr/freeldr/arch/uefi/uefildr.c` in this branch and are disabled by default.
+The opt-in CMake switch compiles them **only into the ARM64 `uefildr` target**:
+
+```sh
+# Requires the documented LiberNT RosBE toolchain; not verified in this lab.
+./configure.sh --clang -a arm64 -DREACTOS_TARGET_NT=0xA00 -DLIBERNT_SWITCH_EFI_TRACE=ON
+ninja -C output-Clang-arm64-debug uefildr
+```
+
+The exact build directory may differ with the selected RosBE/profile. Confirm the
+`uefildr.efi` path and test it in QEMU before copying it to
+`/EFI/LiberNT/BOOTAA64.EFI` on the SD card. Never replace the known-good EFI
+fallback without making and verifying a backup. Record the compiled binary's SHA-256.
+
+Checkpoints `[SW-00]` to `[SW-22]` wrap early startup: UEFI log,
+settings, debugger, `MachInit`, UI, memory manager, filesystem,
+module list, boot devices, stack change and `RunLoader`. Output uses the
+firmware's standard UEFI text console, not Tegra-specific hardware accesses.
+Firmware may clear or hide earlier text; absence of a marker is *not* conclusive.
+The trace has **not been compiled or tested** yet, and the SD card still carries R4.
+
 ## Next milestone
 
 **R0 milestone:** reproducibly reach FreeLoader on Switch Lite and capture a physical debug trace clearly identifying its last executed startup stage.  
