@@ -194,6 +194,12 @@ set_target_properties(uefildr PROPERTIES SUFFIX ".efi")
 
 target_compile_definitions(uefildr PRIVATE _FRLDRLIB_ UEFIBOOT)
 
+# Opt-in early startup trace for Switch Lite and other ARM64 UEFI experiments.
+# It is confined to the UEFI loader and disabled in regular builds.
+if(ARCH STREQUAL "arm64" AND LIBERNT_SWITCH_EFI_TRACE)
+    target_compile_definitions(uefildr PRIVATE LIBERNT_SWITCH_EFI_TRACE=1)
+endif()
+
 # On AMD64 we only map 1GB with freeloader, tell UEFI to keep us low.
 # On ARM64, match the Windows boot manager preferred base to keep PE metadata
 # and early VA/PA assumptions close to the platform loader this path emulates.
