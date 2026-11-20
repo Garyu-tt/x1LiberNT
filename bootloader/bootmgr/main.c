@@ -8,6 +8,13 @@
 #include <bl.h>
 #include <gui.h>
 
+/* Optional firmware-console checkpoints for ARM64 UEFI research builds. */
+#ifdef LIBERNT_SWITCH_EFI_TRACE
+#define BM_SWITCH_TRACE(Message) FwPrint(Message)
+#else
+#define BM_SWITCH_TRACE(Message) ((VOID)0)
+#endif
+
 #define BM_MAX_ENTRIES     GUI_MAX_ENTRIES
 #define BM_EXTRA_ITEMS     3
 #define BM_NAME_CHARS      64
@@ -934,17 +941,23 @@ BlMain(VOID)
     ULONG Size, Default = 0, DefaultTool = MAXULONG, i;
     LONG Timeout;
 
+    BM_SWITCH_TRACE(L"[SW-BM00] BlMain entered\r\n");
     FwDebugAnnounce("LiberNT Boot Manager", TRUE);
+    BM_SWITCH_TRACE(L"[SW-BM01] Firmware announcement complete\r\n");
+    BM_SWITCH_TRACE(L"[SW-BM02] BmReadStore begin\r\n");
     Store = BmReadStore(BmStorePath, RTL_NUMBER_OF(BmStorePath), &Size);
+    BM_SWITCH_TRACE(L"[SW-BM03] BmReadStore returned\r\n");
 
     RtlStringCchCopyW(BmTitle, RTL_NUMBER_OF(BmTitle), BM_DEFAULT_TITLE);
 
     if (!Store || !BcdOpenStore(Store, Size))
     {
+        BM_SWITCH_TRACE(L"[SW-BM04] BCD missing or invalid\r\n");
         FwPrint(L"The Boot Configuration Data store is missing or corrupt.\r\n");
     }
     else
     {
+        BM_SWITCH_TRACE(L"[SW-BM05] BCD store opened\r\n");
         if (!FwDebugEnabled && BcdOpenObject(BCD_ID_BOOTMGR, &BootMgr) &&
             BcdGetBoolean(&BootMgr, BcdLibraryBoolean_DebuggerEnabled, &Debug) && Debug)
         {
@@ -956,6 +969,7 @@ BlMain(VOID)
         BmStoreSize = Size;
         BmGetDescription(BmTitle, RTL_NUMBER_OF(BmTitle));
         BmCount = BmEnumerateEntries(BmEntries, RTL_NUMBER_OF(BmEntries), &Default);
+        BM_SWITCH_TRACE(L"[SW-BM06] Boot entries enumerated\r\n");
         BmStoreCount = BmCount;
         if (BmCount == 0)
             FwPrint(L"The Boot Configuration Data store has no operating system entry.\r\n");
@@ -975,10 +989,17 @@ BlMain(VOID)
     }
 
     if (BmCount == 0)
+    {
+        BM_SWITCH_TRACE(L"[SW-BM07] BmFinishScan begin\r\n");
         BmFinishScan();
+        BM_SWITCH_TRACE(L"[SW-BM08] BmFinishScan returned\r\n");
+    }
 
     if (BmCount == 0)
+    {
+        BM_SWITCH_TRACE(L"[SW-BM09] No bootable entry; returning\r\n");
         return;
+    }
 
     BmSelected = Default;
     Timeout = BmGetTimeout();
@@ -998,5 +1019,7 @@ BlMain(VOID)
         Timeout = -1;
     }
 
+    BM_SWITCH_TRACE(L"[SW-BM10] Entering boot menu\r\n");
     BmRunMenu(Timeout);
+    BM_SWITCH_TRACE(L"[SW-BM11] Boot menu returned\r\n");
 }
