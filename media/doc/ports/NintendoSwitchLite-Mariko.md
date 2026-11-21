@@ -142,6 +142,42 @@ new direct-R5 test. The trace tells us which boot manager stage completes.
 If needed restore **both** the R4 wrapper and old FreeLoader by the
 validated host script after re-entering Hekate USB Mass Storage.
 
+## R5 legacy FreeLoader build (separate experiment, not active)
+
+The modern `bootmgfw` test remains active on the physical microSD (see above).
+A separate opt-in CMake path now enables the *legacy* `uefildr` on ARM64
+without changing standard boot image selection:
+
+```sh
+# Requires the LiberNT LLVM 24 build toolchain already installed in WSL.
+cmake -S . -B output-Clang-arm64-debug -DLIBERNT_SWITCH_BUILD_LEGACY_UEFILDR=ON
+CCACHE_DISABLE=1 ninja -C output-Clang-arm64-debug -j4 uefildr
+```
+
+A successful *physical* Switch boot is **not** implied by this build.
+
+- Source branch includes `acfd1dc3` (opt-in legacy target) and
+  `a6e9ac45` (mirror trace output to debugger after `DebugInit`).
+- `boot/freeldr/freeldr/uefildr.efi` was built in WSL with LLVM 24:
+  PE32+ ARM64 EFI, **2,087,424 bytes**, SHA-256
+  `d1e15930d276198a55d820cad236c448394656e7887b927ac479baa76d068070`.
+- Separate QEMU `virt` / EDK2 test reached trace checkpoints
+  `[SW-00]` through `[SW-22] RunLoader begin`. QEMU logs also showed
+  no GOP in the *headless virtual machine*, not the physical Switch.
+  This QEMU FAT test does **not** contain the physical Switch system volume.
+- To avoid touching the active modern `bootmgfw` route, the R5 legacy binary
+  was copied *only* to
+  `D:\EFI\LiberNT\Experiments\FreeLoader-R5-UART-trace.EFI`.
+  Destination SHA-256 was verified; active
+  `D:\EFI\BOOT\BOOTAA64.EFI` still had modern `bootmgfw`
+  hash `231bd9b38646c7c5786bf681f1d04994d068e6279590f39427c0d7065abfd405`.
+- Experimental R5 legacy is **not selected by Hekate** until a controlled
+  change to the default EFI boot path is made. Do not mistake file staging
+  for an observed console test.
+- Both modern bootmgfw and legacy FreeLoader need separate, accurately
+  version-pinned physical checkpoints. Legacy FreeLoader is newer than the
+  October LiberNT OS system tree on NTFS and may not load it compatibly.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
