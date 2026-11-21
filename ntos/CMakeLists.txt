@@ -63,6 +63,9 @@ if(NVS)
 endif()
 
 set(NTOSKRNL_SOURCE ${SOURCE})
+if(ARCH STREQUAL "arm64" AND LIBERNT_SWITCH_KERNEL_ENTRY_TRACE)
+    list(APPEND NTOSKRNL_SOURCE ${REACTOS_SOURCE_DIR}/ntos/ke/arm64/switch_entry_probe.c)
+endif()
 set(NTOSKRNL_ASM_SOURCE ${ASM_SOURCE})
 
 
@@ -77,6 +80,9 @@ if(MSVC_IDE)
     set_source_files_properties(${NTOSKRNL_ASM_SOURCE} PROPERTIES COMPILE_DEFINITIONS "CONFIG_SMP")
 endif()
 
+if(ARCH STREQUAL "arm64" AND LIBERNT_SWITCH_KERNEL_ENTRY_TRACE)
+    add_compile_definitions(LIBERNT_SWITCH_KERNEL_ENTRY_TRACE=1)
+endif()
 add_asm_files(ntoskrnl_asm ${NTOSKRNL_ASM_SOURCE})
 
 if(ARCH STREQUAL "i386" OR ARCH STREQUAL "amd64" OR ARCH STREQUAL "riscv64")
