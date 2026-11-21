@@ -531,6 +531,45 @@ manual `LiberNT R0 - Mariko UEFI PROBE` entry after ejecting both host
 volumes, and photograph the last `[SW-HO]` and `[SW-ML]` markers.
 Do not change BCD or install a new kernel in the same experiment.
 
+## R5.5: Switch R5.4 passed ExitBootServices
+
+The real Switch Lite R5.4 photograph confirms [SW-ML00]–[SW-ML12] and
+[SW-HO00]–[SW-HO15], including successful memory descriptor population,
+page-table preparation, framebuffer mapping, return from ExitBootServices,
+watchdog stopping, exception vector setup, processor context initialization,
+and the shared user page zeroing. The last visible checkpoint is **[SW-HO15]**.
+All checkpoints after [SW-HO10] were drawn by the post-UEFI framebuffer
+callback, not firmware OutputString. The kernel has **not** been proven
+to execute. UefiLeaveBootServices halts if ExitBootServices fails, which
+supports this as a genuine transition out of UEFI.
+
+The R5.4 trace attempted its next checkpoint [SW-WL35] via FwPrint after
+returning to OslMain, followed by three OslTrace calls and [SW-WL36].
+FwPrint **does** check BootServicesExitedFlag before attempting firmware
+console output, but still uses logging / direct serial paths. These are
+possible confounders, **not** a confirmed crash cause.
+
+### R5.5 isolated change
+
+- Source commit `05593fdd`: the ARM64 trace-enabled path instead emits
+  ASCII [SW-WL35] and [SW-WL36] via Arm64TrapScreenRoutine and bypasses
+  verbose serial/log calls after EBS. Normal builds retain original code.
+- LLVM 24 Debug ARM64 WinLoad built: PE32+ ARM64, 1,332,224 bytes.
+- SHA-256: `ef5f9dadc7d6b174e075739dbead9e5c6e7cdeba1e99f197efa28f37909ce8c8`.
+- Standalone QEMU EFI test reached [SW-WL09]. QEMU lacks the NTFS system
+  partition and does **not** validate kernel handoff.
+- On physical SD, replaced ONLY `L:\Windows\System32\winload.efi` after
+  verifying the current R5.4 hash; destination SHA-256 was reverified.
+- Saved R5.4 backups on the notebook SSD and the SD FAT32 volume.
+- R5.2 Boot Manager, BCD, Linux partition, Hekate and internal eMMC
+  were not modified. Hekate autoboot remains disabled.
+- Rollback: `C:\Users\Public\Documents\LiberNT-Switch-R0\restore-winload-r5.4-from-r5.5.ps1`
+  (created and PowerShell syntax-checked; not executed).
+
+**R5.5 physical-console result pending.** After safely ejecting the
+two Hekate USB Mass Storage volumes, boot the same manual profile and
+photograph [SW-WL35] / [SW-WL36] or the last earlier checkpoint.
+Even [SW-WL36] proves only an attempted kernel jump, not kernel entry.
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
