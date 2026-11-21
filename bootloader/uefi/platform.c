@@ -417,12 +417,26 @@ FwStartImage(
 
     *Cancelled = FALSE;
 
-    if (EFI_ERROR(BootServices->LoadImage(FALSE, GlobalImageHandle, NULL, Image, Size, &Handle)))
+#ifdef LIBERNT_SWITCH_STARTIMAGE_TRACE
+    FwPrint(L"[SW-FW00] BootServices.LoadImage begin\r\n");
+#endif
+    Status = BootServices->LoadImage(FALSE, GlobalImageHandle, NULL, Image, Size, &Handle);
+#ifdef LIBERNT_SWITCH_STARTIMAGE_TRACE
+    FwPrint(L"[SW-FW01] LoadImage returned: %lx\r\n", (ULONG_PTR)Status);
+#endif
+    if (EFI_ERROR(Status))
         return FALSE;
 
-    if (EFI_ERROR(BootServices->HandleProtocol(Handle,
-                                               &FwLoadedImageProtocolGuid,
-                                               (VOID**)&LoadedImage)))
+#ifdef LIBERNT_SWITCH_STARTIMAGE_TRACE
+    FwPrint(L"[SW-FW02] LoadedImage protocol begin\r\n");
+#endif
+    Status = BootServices->HandleProtocol(Handle,
+                                          &FwLoadedImageProtocolGuid,
+                                          (VOID**)&LoadedImage);
+#ifdef LIBERNT_SWITCH_STARTIMAGE_TRACE
+    FwPrint(L"[SW-FW03] LoadedImage protocol status: %lx\r\n", (ULONG_PTR)Status);
+#endif
+    if (EFI_ERROR(Status))
     {
         BootServices->UnloadImage(Handle);
         return FALSE;
@@ -431,9 +445,22 @@ FwStartImage(
     LoadedImage->LoadOptions = (VOID*)LoadOptions;
     LoadedImage->LoadOptionsSize = (UINT32)((wcslen(LoadOptions) + 1) * sizeof(WCHAR));
 
+#ifdef LIBERNT_SWITCH_STARTIMAGE_TRACE
+    FwPrint(L"[SW-FW04] LoadOptions assigned\r\n");
+#endif
     UdpLogClose();
+#ifdef LIBERNT_SWITCH_STARTIMAGE_TRACE
+    FwPrint(L"[SW-FW05] UDP log closed\r\n");
+#endif
     BootLogClose();
+#ifdef LIBERNT_SWITCH_STARTIMAGE_TRACE
+    FwPrint(L"[SW-FW06] Boot log closed\r\n");
+    FwPrint(L"[SW-FW07] StartImage begin\r\n");
+#endif
     Status = BootServices->StartImage(Handle, NULL, NULL);
+#ifdef LIBERNT_SWITCH_STARTIMAGE_TRACE
+    FwPrint(L"[SW-FW08] StartImage returned: %lx\r\n", (ULONG_PTR)Status);
+#endif
     UdpLogOpen();
     *Cancelled = (Status == EFI_ABORTED);
     return !EFI_ERROR(Status);
