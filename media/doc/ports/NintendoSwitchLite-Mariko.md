@@ -378,6 +378,63 @@ boot parameters, SD device access, SYSTEM hive, or kernel image loading.
 Do not claim a successful kernel entry until `[SW-WL36]` and a separate
 kernel-side marker are observed.
 
+## Read-only R5.3 preflight and early-kernel display planning
+
+After the R5.3 SD deployment, a subsequent host check again confirmed
+`L:\Windows\System32\winload.efi` SHA-256
+`021b85b733c1bdd95850f58a467e50a7322cde00cf4573556e442abf6a9f385b`.
+**No physical R5.3 photograph has been supplied yet.**
+
+Read-only inspection of the currently mounted second NTFS volume found:
+
+| File | Status |
+| --- | --- |
+| `\Windows\System32\winload.efi` | Present, PE ARM64 (0xAA64), 1,329,664 bytes |
+| `\Windows\System32\ntoskrnl.exe` | Present, PE ARM64 (0xAA64), 4,608,000 bytes |
+| `\Windows\System32\ntkrnlmp.exe` | Present, PE ARM64 (0xAA64), 4,677,632 bytes |
+| `\Windows\System32\hal.dll` | Present, PE ARM64 (0xAA64), 1,798,144 bytes |
+| `\Windows\System32\lfbbvid.dll` | Present, PE ARM64 (0xAA64), 1,011,712 bytes |
+| `\Windows\System32\bootvid.dll` | Present, PE ARM64 (0xAA64), 1,011,712 bytes |
+| `\Windows\System32\config\SYSTEM` | Present, 978,944 bytes |
+| `\Windows\System32\*.nls` | 133 files found |
+| `\Windows\System32\drivers\*.sys` | 161 files found |
+
+Presence is **not** proof of successful registry parsing, image relocations,
+module imports, driver compatibility or boot.
+
+### Next kernel-level observable
+
+The **current source** in `ntos/ke/arm64/earlyscreen.c` contains an early
+framebuffer console that is conditional on `DEBUGPORT=SCREEN`, and
+`ntos/ke/arm64/boot.c` calls `KiArm64EarlyScreenInitialize` after
+establishing early mappings. The actual older kernel binary staged on SD
+has not been confirmed to include the same source revision or exact
+early-screen startup banner. Kernel entry is therefore still unproven.
+
+The **active** BCD OS entry instead has
+`loadoptions KDWATCHDOG=0 DEBUGPORT=FILE`, so the early screen console
+is not currently requested. A **separate test copy** of the BCD was
+prepared entirely on the laptop at:
+
+`C:\Users\Public\Documents\LiberNT-Switch-R0\staging-r5.3\BCD-screen-debug-test`
+
+with `loadoptions KDWATCHDOG=0 DEBUGPORT=SCREEN`.
+It is **NOT** active on SD and should not be switched until after the
+physical R5.3 result is captured. Copy-only baseline stored at
+`BCD-snapshot-before-SCREEN`.
+
+During the lab the live BCD SHA-256 changed between observations, but the
+readable `{default}` OS device, system root, kernel, HAL and loadoptions
+continued to report the same values. **Cause of the mutable hive metadata
+is unproven**; do not rely on a historical BCD hash as a perpetual immutable
+artifact. Inspect and back up the current live store before making any
+future BCD changes; do not overwrite it when its contents differ.
+
+**Next actual device milestone:** observe the already-installed R5.3
+`[SW-WL11]`–`[SW-WL36]` markers; then decide whether to activate the
+screen-debug BCD in a separate, one-variable experiment. A visible kernel
+entry should be established independently from loader messages.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
