@@ -6,6 +6,7 @@ Input is never modified. The output is atomically renamed on successful write.
 """
 import argparse
 import os
+import shutil
 import struct
 import tempfile
 import zlib
@@ -31,7 +32,9 @@ def encode_rle(data):
             i += run
             while i < n and i - start < 128:
                 j = i + 1
-                while j < n and j - i < 3 and data[j] == data[i]:
+                while j < n and i - start < 128:
+                    if j - i >= 3 or data[j] != data[i]:
+                        break
                     j += 1
                 if j - i >= 3:
                     break
@@ -50,21 +53,23 @@ def pack(src, dest, block):
     target_dir = os.path.dirname(os.path.abspath(dest))
     fd, tmp = tempfile.mkstemp(prefix='.ncz-', dir=target_dir)
     try:
-        with os.fdopen(fd, 'wb') as out, open(src, 'rb') as inp:
+        with os.fdopen(fd, 'wb') as out, open(src, 'rb') as inp, tempfile.TemporaryFile(mode='w+b') as index_file:
             out.write(b'\x00' * HEADER.size)
-            records = []
+            count = 0
             while True:
                 raw = inp.read(block)
                 if not raw:
                     break
                 packed = encode_rle(raw)
                 codec, payload = (1, packed) if len(packed) < len(raw) else (0, raw)
-                records.append((out.tell(), len(payload), len(raw), codec, zlib.crc32(raw)))
+                index_file.write(ENTRY.pack(out.tell(), len(payload), len(raw), codec, zlib.crc32(raw)))
                 out.write(payload)
-            assert len(records) == nblocks
+                count += 1
+            if count != nblocks:
+                raise IOError('Input changed while reading')
             offset = out.tell()
-            for record in records:
-                out.write(ENTRY.pack(*record))
+            index_file.seek(0)
+            shutil.copyfileobj(index_file, out, 1024 * 1024)
             out.seek(0)
             out.write(HEADER.pack(b'NCZ1', 1, 0, block, size, nblocks, offset, ENTRY.size))
             out.flush()
