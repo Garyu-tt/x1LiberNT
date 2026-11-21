@@ -961,6 +961,30 @@ the current kernel on the Switch until a testable full kernel artifact
 is produced and verified. No further device-side modification was
 performed for this report.
 
+### R5.9 source-level execution-permission audit
+
+Physical R5.9A has reached `[SW-A10]`: `AT S1E1R, x19` read
+translation succeeded, but kernel execution remains unproven.
+
+Read-only inspection of
+`bootloader/arch/arm64/mmu_v2.c` confirms that
+`Arm64ApplyImageSectionProtections()` examines the PE section flag
+`IMAGE_SCN_MEM_EXECUTE`. For executable sections it clears
+`PTE_BLOCK_PXN` and `PTE_BLOCK_UXN`; the routine is called in
+`Arm64EnablePageTables()`. The currently installed ARM64 kernel's PE
+entrypoint resides in an executable `.text` section (RVA `0x12400`).
+
+This is positive evidence for the **intended** executable mapping,
+not proof of the runtime page-table bits or a successful branch.
+A kernel-side entry marker remains necessary.
+
+The source's opt-in R5.9 probe was independently validated at the
+object/symbol level: `KiSystemStartup` references
+`KiArm64EntryProbe`, and the latter has a global symbol in
+`switch_entry_probe.c.obj`. The full cross-compiled kernel image was
+not yet available when this note was recorded. The experimental SD
+kernel remained byte-identical to its verified baseline.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
