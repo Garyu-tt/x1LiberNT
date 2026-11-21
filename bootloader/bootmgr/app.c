@@ -7,6 +7,12 @@
 
 #include <bl.h>
 
+#ifdef LIBERNT_SWITCH_DIAG_DIRECT_BOOT
+#define BM_APP_DIAG(Message) FwPrint(Message)
+#else
+#define BM_APP_DIAG(Message) ((VOID)0)
+#endif
+
 #define BM_STARTUP_CHARS 48
 
 static
@@ -69,6 +75,7 @@ BmStartApplication(
     BOOLEAN Started = FALSE;
 
     *Cancelled = FALSE;
+    BM_APP_DIAG(L"[SW-DB10] BmStartApplication entered\r\n");
 
     if (Entry->FirmwareDevice)
     {
@@ -78,6 +85,7 @@ BmStartApplication(
         return Started;
     }
 
+    BM_APP_DIAG(L"[SW-DB11] Resolving BCD device/path\r\n");
     if (!BcdGetDevice(&Entry->Object, BcdLibraryDevice_ApplicationDevice, &BcdDevice) ||
         !BcdGetString(&Entry->Object, BcdLibraryString_ApplicationPath, Path, RTL_NUMBER_OF(Path)))
     {
@@ -85,6 +93,7 @@ BmStartApplication(
         return FALSE;
     }
 
+    BM_APP_DIAG(L"[SW-DB12] BCD path resolved; opening image\r\n");
     if (BcdDevice.Type == BcdDeviceBoot)
     {
         Image = FwReadBootFile(Path, &Size);
@@ -99,6 +108,7 @@ BmStartApplication(
         return FALSE;
     }
 
+    BM_APP_DIAG(L"[SW-DB13] Image read operation returned\r\n");
     if (!Image)
     {
         FwPrint(L"%s could not be read.\r\n", Path);
@@ -115,6 +125,7 @@ BmStartApplication(
         return FALSE;
     }
 
+    BM_APP_DIAG(L"[SW-DB14] PE headers and checksum validated\r\n");
     if (NtHeaders->OptionalHeader.Subsystem == FwApplicationSubsystem)
     {
         RtlStringCchPrintfW(Options,
@@ -125,7 +136,9 @@ BmStartApplication(
                             BM_STARTUP_OPTION,
                             Startup->Profile,
                             Startup->UndoUpdate ? L" " BM_UNDO_UPDATE_OPTION : L"");
+        BM_APP_DIAG(L"[SW-DB15] FwStartImage begin\r\n");
         Started = FwStartImage(Image, Size, Options, Cancelled);
+        BM_APP_DIAG(L"[SW-DB16] FwStartImage returned\r\n");
         if (!Started && !*Cancelled)
             FwPrint(L"%s did not start the operating system.\r\n", Path);
     }
