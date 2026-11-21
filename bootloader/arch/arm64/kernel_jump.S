@@ -10,6 +10,25 @@
 
 .extern Arm64CompleteCacheMaintenance
 
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+.extern Arm64KernelJumpTrace
+
+/*
+ * Debug-only framebuffer checkpoint. Preserve the live x19-x21 state,
+ * LR and stack alignment. Do NOT invoke UEFI or write to internal eMMC.
+ * Do not add a call after TTBR0 removal without separately checking
+ * that code, stack and framebuffer data are accessible under TTBR1.
+ */
+.macro SWITCH_ASM_MARK stage
+    stp x19, x20, [sp, #-32]!
+    stp x21, x30, [sp, #16]
+    mov w0, #\\stage
+    bl Arm64KernelJumpTrace
+    ldp x21, x30, [sp, #16]
+    ldp x19, x20, [sp], #32
+.endm
+#endif
+
 /*
  * Arm64JumpToKernel(KernelEntry, LoaderBlockVA, KernelStack)
  * x0 = Kernel entry point (virtual address)
@@ -23,6 +42,16 @@
  */
 .global Arm64JumpToKernel
 Arm64JumpToKernel:
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+    /* Before modifying x19-x21, prove assembly entry while retaining ABI. */
+    stp x0, x1, [sp, #-32]!
+    stp x2, x30, [sp, #16]
+    mov w0, #0
+    bl Arm64KernelJumpTrace
+    ldp x2, x30, [sp, #16]
+    ldp x0, x1, [sp], #32
+#endif
+
     /* Save parameters */
     mov x19, x0     /* Kernel entry point */
     mov x20, x1     /* LoaderBlock */
@@ -40,6 +69,10 @@ Arm64JumpToKernel:
     br x16
 
 .Lkseg0_handoff:
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+    /* Last checkpoint before switching to the kernel stack. */
+    SWITCH_ASM_MARK 1
+#endif
 
     /* Ensure all memory accesses complete */
     dsb ish
@@ -53,6 +86,10 @@ Arm64JumpToKernel:
     bic x22, x22, #0xF  /* Clear low 4 bits to ensure 16-byte alignment */
     mov sp, x22     /* Switch to aligned kernel stack */
 1:
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+    /* Probe the new stack while TTBR0 identity mapping still exists. */
+    SWITCH_ASM_MARK 2
+#endif
 
     /* Mask interrupts during the hand-off */
     msr daifset, #0xF
