@@ -178,6 +178,69 @@ A successful *physical* Switch boot is **not** implied by this build.
   version-pinned physical checkpoints. Legacy FreeLoader is newer than the
   October LiberNT OS system tree on NTFS and may not load it compatibly.
 
+## R5.1 physical Boot Manager observation and direct-boot diagnostic
+
+On the physical **Switch Lite** with direct `bootmgfw.efi` R5 (original
+SHA-256 `231bd9b38646c7c5786bf681f1d04994d068e6279590f39427c0d7065abfd405`),
+the photographed screen shows:
+
+```text
+[SW-BM00] BlMain entered
+[SW-BM01] Firmware announcement complete
+[SW-BM02] BmReadStore begin
+[SW-BM03] BmReadStore returned
+[SW-BM05] BCD store opened
+[SW-BM06] Boot entries enumerated
+[SW-BM10] Entering boot menu
+```
+
+A LiberNT logo was visible, but the expected interactive boot menu was not
+visible. No `[SW-BM11]` or successful `winload` handoff is proven.
+The green blocks at the screen edge were also seen in earlier firmware
+screens; their origin is unconfirmed. `BmRunMenu` calls `GuiInitialize`
+and `FbGuiVtbl.DisplayMenu`. That menu code may retain the firmware
+screen while a positive timeout remains, and waits on timer, keyboard,
+touchscreen or volume-button input; **the precise physical cause is not yet
+known**.
+
+To distinguish a GUI/input/timer problem from BCD device and `winload`
+problems, a temporary one-shot diagnostic was added:
+- `LIBERNT_SWITCH_DIAG_DIRECT_BOOT=ON`, requiring the existing
+  `LIBERNT_SWITCH_EFI_TRACE=ON`; source changes in
+  `bootloader/bootmgr/main.c`, `bootloader/bootmgr/app.c`, and
+  `bootloader/CMakeLists.txt`.
+- Bypasses `BmRunMenu` and calls `BmStartApplication` on the currently
+  selected BCD default entry; it avoids the update-state write path and
+  does not enter a blocking "press any key" prompt when the attempt fails.
+- New checkpoints `[SW-DB00]`–`[SW-DB16]` distinguish BCD resolution,
+  opening image, PE verification, and starting the loader.
+- WSL LLVM 24, Debug ARM64 build via
+  `cmake -S . -B output-Clang-arm64-debug -DLIBERNT_SWITCH_DIAG_DIRECT_BOOT=ON`
+  and `ninja -C output-Clang-arm64-debug -j4 bootmgfw`.
+- Output PE32+ ARM64 EFI SHA-256:
+  `d9ecbd0a97ee59160104e6ccdb3eafa804209ade00126ad595495ad8d5dad658`.
+- QEMU `virt` + EDK2 confirmed `[SW-DB00]`–`[SW-DB12]`, then reported
+  `The application device was not found`, followed by `[SW-DB02]`
+  and `[SW-DB05]`. This is expected in the virtual case without the
+  physical NTFS system partition and **does not indicate the same error on
+  the Switch**.
+- The active microSD `D:\EFI\BOOT\BOOTAA64.EFI` was updated to that
+  diagnostic with SHA-256 verification. Previous GUI Boot Manager was
+  preserved at
+  `D:\EFI\LiberNT\Experiments\bootmgfw-R5-original-GUI-backup.EFI`.
+  A spare R5.1 binary is at
+  `D:\EFI\LiberNT\Experiments\bootmgfw-R5.1-DirectDiagnostic.EFI`.
+- A checksum-guarded selector/rollback script was prepared at
+  `C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r5.1-boot-selector.ps1`.
+- Hekate autoboot is still off. The NTFS system volume, existing Linux
+  partition and internal eMMC were not modified during this diagnostic
+  update.
+
+**R5.1 physical result is pending.** Safely eject Hekate USB storage, boot
+the manual `LiberNT R0 - Mariko UEFI PROBE` configuration, and photograph
+the last `[SW-DBxx]` checkpoint or any new failure message.
+A successful `winload` or kernel boot is not assumed.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
