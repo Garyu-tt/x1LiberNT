@@ -867,6 +867,63 @@ the source's early framebuffer banner. A separate opt-in kernel-entry
 probe and baseline-checked kernel build would be the next investigation,
 but **no new kernel binary has been built or deployed yet**.
 
+## R5.9 — physical R5.8 unchanged; kernel source probe and R5.9A installed
+
+**Physical R5.8 photograph:** With BCD DEBUGPORT=SCREEN, the last visible
+checkpoint is still [SW-A08] Final kernel branch next. No independent
+kernel-side output is visible. This alone does NOT prove br x19 failed.
+
+### Kernel-entry source probes (not installed)
+
+Opt-in flag LIBERNT_SWITCH_KERNEL_ENTRY_TRACE=ON enables a framebuffer
+color-bar probe in ntos/ke/arm64/switch_entry_probe.c, invoked directly
+from KiSystemStartup in bootstack.S and three additional ARM64 C startup
+locations in boot.c. The marker colors represent assembly entry,
+startup C entry, exception vectors, and identity mapping preparation.
+All three changed ARM64 compilation objects passed their individual
+LLVM 24 compile checks. Full ntoskrnl linking/build is **NOT COMPLETE**:
+the cold target has >8,000 dependencies; the build was intentionally
+interrupted after partial dependency compilation. The original physical
+ntoskrnl.exe was not changed. Github commits f7326f96, 7f51b762,
+dacbd974, d62b073b. Compiled objects are not a bootable kernel.
+
+### Fast alternate test R5.9A (WinLoad only)
+
+Source commits 5f4ea1f5 and cc0e5323 add diagnostic ARM64 translation
+check for the actual x19 kernel entry address, after [SW-A08] and before
+br x19: AT S1E1R, x19; read PAR_EL1.F. [SW-A09] indicates translation
+FAULT (the test holds in a diagnostic loop); [SW-A10] indicates
+EL1 read translation succeeded before proceeding with br x19.
+Read translation does NOT prove execution permission or kernel entry.
+
+R5.9A ARM64 EFI WinLoad compiled with LLVM 24 (1,333,760 bytes);
+SHA-256 6dc1602d4d96255a261afa2f29e1946ba1010cd498c679d3c84f0ad6fba47375.
+The new marker strings were verified in the PE image. QEMU standalone
+smoke test reached [SW-WL09]; it cannot exercise the deep real-OS path.
+Notebook staging:
+C:\Users\Public\Documents\LiberNT-Switch-R0\staging-r5.9a\winload-R5.9a.efi
+
+Physical Hekate SD was confirmed as non-system USB disk 'hekate SD RAW',
+D: FAT32 'SWITCH SD', L: NTFS 'LIBERNT-LAB'. Original R5.7 WinLoad hash
+b91a87c0f5ab1a60d77959f1169b0ccc3079a403a76c1e6915611b4c69d2828f
+and R5.9A candidate hashes were verified before copying.
+R5.7 WinLoad backed up, with checksums, at:
+C:\Users\Public\Documents\LiberNT-Switch-R0\backups\winload-R5.7-confirmed-physical-before-R5.9A.EFI
+D:\EFI\LiberNT\Experiments\winload-R5.7-confirmed-physical-before-R5.9A.EFI
+R5.9A staged at D:\EFI\LiberNT\Experiments\winload-R5.9A-entry-translation-probe.EFI
+and installed ONLY at L:\Windows\System32\winload.efi. Installation SHA-256
+verified. Boot Manager R5.2, original ntoskrnl.exe, BCD DEBUGPORT=SCREEN,
+Hekate configuration, Linux partition and internal eMMC were unchanged.
+SHA-256 of original kernel:
+394d34cffce85e26cc6700a1f9751cb08c8ba8ea5adf5835f4e3aaa9ab064479.
+
+Rollback script (created, syntax validated, not executed):
+C:\Users\Public\Documents\LiberNT-Switch-R0\restore-winload-r5.7-from-r5.9a.ps1
+
+**R5.9A physical result pending.** Safely eject D: and L:, leave Hekate
+USB Mass Storage and boot the existing manual LiberNT R0 - Mariko UEFI
+PROBE profile. Photograph [SW-A09] or [SW-A10], if either appears.
+No kernel execution claim is justified by these loader-only stages.
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
