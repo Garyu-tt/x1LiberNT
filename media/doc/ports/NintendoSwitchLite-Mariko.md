@@ -102,10 +102,15 @@ SHA-256: `6cb7c363a2d659c63c930311b0fb90fea442b9100365d91defbf16bab6b74340`.
 
 **Staged on the physical microSD; physical R5 boot not yet observed:**
 
-- The existing verified R4 outer diagnostic remains at
-  `D:\EFI\BOOT\BOOTAA64.EFI` (SHA-256 `FB0914C5885CA193ED62ABC419806DD3CB6315590AB9E65EE6AF928FCAE0B6FE`).
-- Its child `D:\EFI\LiberNT\BOOTAA64.EFI` now contains the
-  **new** instrumented `bootmgfw.efi`.
+- **Active physical boot path uses the modern instrumented Boot Manager directly:**
+  `D:\EFI\BOOT\BOOTAA64.EFI` now contains R5 `bootmgfw.efi`
+  (SHA-256 `231bd9b38646c7c5786bf681f1d04994d068e6279590f39427c0d7065abfd405`).
+- The previous R4 outer wrapper is saved as
+  `D:\EFI\LiberNT\BOOTAA64-R4-wrapper-restore.EFI` (SHA-256
+  `FB0914C5885CA193ED62ABC419806DD3CB6315590AB9E65EE6AF928FCAE0B6FE`).
+  A separate host backup was also verified.
+- `D:\EFI\LiberNT\BOOTAA64.EFI` also contains a verified copy of
+  `bootmgfw.efi`, but it is **not** used by the direct-R5 boot path.
 - Switch-specific BCD is at `D:\EFI\LiberNT\Boot\BCD`.
 - Current `winload.efi` was staged to
   `L:\Windows\System32\winload.efi` and a copy to
@@ -121,11 +126,21 @@ SHA-256: `6cb7c363a2d659c63c930311b0fb90fea442b9100365d91defbf16bab6b74340`.
 - Hekate autoboot is disabled, no partition rewriting, no internal
   console eMMC writes.
 
+**Chain A/B check:** QEMU was also tested using R4 diagnostic as the
+outer EFI image loading the modern Boot Manager as its child. It reached
+`[SW-BM10] Entering boot menu`, but then emitted a
+`Synchronous Exception`. A previous **direct** bootmgr QEMU run did not
+show that exception. To remove the R4 wrapper as a confounder, the actual
+SD's default EFI path is now set to **direct bootmgfw**. This is a
+hypothesis-driven isolation step, not proof that the wrapper caused the
+exception.
+
 **Next hardware observation:** safely eject both USB Mass Storage volumes,
-boot `More Configs -> LiberNT R0 - Mariko UEFI PROBE`, capture exact
-R4 preflight and `[SW-BMxx]` diagnostics. The trace tells us which
-boot manager stage completes. If needed restore old R4 FreeLoader by the
-validated script after re-entering Hekate USB Mass Storage.
+boot `More Configs -> LiberNT R0 - Mariko UEFI PROBE`, capture the
+`[SW-BMxx]` diagnostics. The R4 preflight should **not** appear in the
+new direct-R5 test. The trace tells us which boot manager stage completes.
+If needed restore **both** the R4 wrapper and old FreeLoader by the
+validated host script after re-entering Hekate USB Mass Storage.
 
 ## Next milestone
 
