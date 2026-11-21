@@ -62,34 +62,75 @@ The second partition holds the extracted LiberNT `Windows` tree, including ARM64
 - Keep Mariko hardware knowledge out of common kernel code. Do not transplant incompatible Windows driver code or Linux GPL code; follow the upstream `AGENTS.md` clean-room and licensing policy.
 - No automatic upstream PR or claim of driver/OS functionality until the relevant physical tests exist.
 
-## R5 source-level diagnostics (not yet built)
+## R5: current boot manager, build, and physical SD staging (not yet boot-tested)
 
-Experimental source-only FreeLoader checkpoints have been added to
-`boot/freeldr/freeldr/arch/uefi/uefildr.c` in this branch and are disabled by default.
-The opt-in CMake switch compiles them **only into the ARM64 `uefildr` target**:
+**Important architecture change:** this fork's current ARM64 configuration uses
+`bootmgfw.efi -> BCD -> winload.efi` by default. The R0–R4 physical experiments
+ran an **older upstream ARM64 FreeLoader** from a prebuilt release; the initial
+opt-in `uefildr.c` trace on this branch is retained for research, but the
+`uefildr` target is disabled in the current default ARM64 build. The active
+R5 path uses the newly instrumented `bootloader/bootmgr/main.c` with
+`[SW-BM00]…[SW-BM11]` and `LIBERNT_SWITCH_EFI_TRACE=ON` passed to
+the ARM64 `bootmgfw` target only.
 
-```sh
-# Requires the documented LiberNT RosBE toolchain; not verified in this lab.
-./configure.sh --clang -a arm64 -DREACTOS_TARGET_NT=0xA00 -DLIBERNT_SWITCH_EFI_TRACE=ON
-ninja -C output-Clang-arm64-debug uefildr
-```
+**Actual build:**
 
-The exact build directory may differ with the selected RosBE/profile. Confirm the
-`uefildr.efi` path and test it in QEMU before copying it to
-`/EFI/LiberNT/BOOTAA64.EFI` on the SD card. Never replace the known-good EFI
-fallback without making and verifying a backup. Record the compiled binary's SHA-256.
+- Host: laptop WSL Ubuntu, Clang 24 from official LiberNT LLVM releases
+  (both LLVM archives verified against their release SHA-256); source ref
+  `26e319d75ec5bc7b4ce59ca40444a74a738c4900`; `CCACHE_DISABLE=1`.
+- `./configure.sh --clang -a arm64 --no-feeds-update -DREACTOS_TARGET_NT=0xA00 -DLIBERNT_SWITCH_EFI_TRACE=ON -DENABLE_CCACHE=0`
+- `ninja -C output-Clang-arm64-debug bootmgfw`
+- `bootloader/bootmgfw.efi`: SHA-256
+  `231bd9b38646c7c5786bf681f1d04994d068e6279590f39427c0d7065abfd405`
+- `bootloader/winload.efi`: SHA-256
+  `9da6bc13cbe65a068bf34706981a8ad2dba79f82ed712be7e533b45040b352f7`
 
-Checkpoints `[SW-00]` to `[SW-22]` wrap early startup: UEFI log,
-settings, debugger, `MachInit`, UI, memory manager, filesystem,
-module list, boot devices, stack change and `RunLoader`. Output uses the
-firmware's standard UEFI text console, not Tegra-specific hardware accesses.
-Firmware may clear or hide earlier text; absence of a marker is *not* conclusive.
-The trace has **not been compiled or tested** yet, and the SD card still carries R4.
+**Emulator-only proof:** ARM64 QEMU + EDK2 executed the new Boot Manager.
+The original generated BCD was read successfully; the test reached
+`[SW-BM06] Boot entries enumerated` and exposed the expected entry
+`LiberNT`. The virtual setup did not have the expected matching
+system partition, so launching that entry reported an unavailable device.
+No kernel-start claim follows from this test.
+
+**Actual microSD identification, read-only:** MBR disk signature
+`0x17ECE80C`; FAT32 p1, NTFS p2 starts at byte offset
+`8607760384` (LBA `16812032`), existing Linux p3 preserved.
+The default BCD targets a **different** MBR signature/offset, so a
+Switch-specific BCD was generated with LiberNT's `utf16le` and
+`mkhive` tools. It modifies exactly two OS/loader device references.
+SHA-256: `6cb7c363a2d659c63c930311b0fb90fea442b9100365d91defbf16bab6b74340`.
+
+**Staged on the physical microSD; physical R5 boot not yet observed:**
+
+- The existing verified R4 outer diagnostic remains at
+  `D:\EFI\BOOT\BOOTAA64.EFI` (SHA-256 `FB0914C5885CA193ED62ABC419806DD3CB6315590AB9E65EE6AF928FCAE0B6FE`).
+- Its child `D:\EFI\LiberNT\BOOTAA64.EFI` now contains the
+  **new** instrumented `bootmgfw.efi`.
+- Switch-specific BCD is at `D:\EFI\LiberNT\Boot\BCD`.
+- Current `winload.efi` was staged to
+  `L:\Windows\System32\winload.efi` and a copy to
+  `D:\EFI\LiberNT\Boot\winload.efi`.
+- Prior old FreeLoader preserved at
+  `D:\EFI\LiberNT\BOOTAA64-OldFreeLoader-R4-backup.EFI`
+  and in Windows host backups; their hashes were verified.
+- A validated rollback script was saved on the laptop:
+  `C:\Users\Public\Documents\LiberNT-Switch-R0\restore-R4-FreeLoader.ps1`.
+- The Windows system tree on `L:` comes from the **earlier upstream
+  October Debug release**, so it may be incompatible with the new
+  November `winload.efi`. Kernel boot is **not verified**.
+- Hekate autoboot is disabled, no partition rewriting, no internal
+  console eMMC writes.
+
+**Next hardware observation:** safely eject both USB Mass Storage volumes,
+boot `More Configs -> LiberNT R0 - Mariko UEFI PROBE`, capture exact
+R4 preflight and `[SW-BMxx]` diagnostics. The trace tells us which
+boot manager stage completes. If needed restore old R4 FreeLoader by the
+validated script after re-entering Hekate USB Mass Storage.
 
 ## Next milestone
 
-**R0 milestone:** reproducibly reach FreeLoader on Switch Lite and capture a physical debug trace clearly identifying its last executed startup stage.  
-**R1 milestone:** first confirmed transition into the LiberNT ARM64 kernel.  
+**R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
+**R1 milestone:** first confirmed `bootmgfw -> winload` transition, followed by first confirmed LiberNT ARM64 kernel entry.  
 **R2 milestone:** basic storage, framebuffer and input under the kernel.
 
-The milestone labels here describe planned targets and are distinct from the R0–R4 EFI diagnostic builds above.
+The milestone labels here describe planned targets and are distinct from the R0–R5 EFI diagnostic builds above.
