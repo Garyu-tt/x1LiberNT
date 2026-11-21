@@ -166,6 +166,13 @@ if(FREELDR_HAS_BIOS_BOOT)
 endif()
 if(ARCH STREQUAL "ppc")
     include(ofw.cmake)
-elseif(NOT BOOTLOADER_UEFI AND (NOT ARCH STREQUAL "i386" OR NOT (SARCH STREQUAL "pc98" OR SARCH STREQUAL "xbox")))
+# Modern ARM64 builds normally use bootmgfw + winload. The old FreeLoader
+# remains useful for diagnosing existing release media on physical hardware.
+# Opt-in compilation of the legacy EFI application does not replace bootmgfw
+# in boot images or change the default boot chain.
+elseif((NOT BOOTLOADER_UEFI OR
+        (ARCH STREQUAL "arm64" AND LIBERNT_SWITCH_BUILD_LEGACY_UEFILDR))
+       AND (NOT ARCH STREQUAL "i386" OR
+            NOT (SARCH STREQUAL "pc98" OR SARCH STREQUAL "xbox")))
     include(uefi.cmake)
 endif()
