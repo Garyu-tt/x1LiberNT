@@ -985,6 +985,93 @@ object/symbol level: `KiSystemStartup` references
 not yet available when this note was recorded. The experimental SD
 kernel remained byte-identical to its verified baseline.
 
+## R5.9 experimental ARM64 ntoskrnl successfully built and installed on SD
+
+After the physical Switch Lite R5.9A **`[SW-A10]`** report, the source's
+opt-in `LIBERNT_SWITCH_KERNEL_ENTRY_TRACE=ON` test kernel was
+fully cross-compiled on the connected laptop using WSL/LLVM 24.
+The build passed **7,887 Ninja actions** and linked a complete
+`ntoskrnl.exe` rather than only separate object files:
+
+- Candidate: PE32+ **ARM64** (`0xAA64`), **Native** subsystem,
+  13 sections, 8,409,088 bytes, `ImageBase=0x400000`.
+- PE `AddressOfEntryPoint=0x12750` in an executable `.text` section.
+- SHA-256 `d35605f76c2f8d235273209a5fe924e1a63375f42f1f679f2ec47de3e04200b9`.
+- Disassembly of the **linked** PE at VA `0x412750` starts with
+  `mrs x9, CPACR_EL1`, enables FP/ASIMD, then saves x0/LR and
+  calls the entry framebuffer probe with `w1=1`.
+  This positively confirms an instrumented **binary** entrypoint;
+  it does *not* confirm any instruction executed on the Switch.
+
+The kernel probe paints small bars in the upper-right framebuffer:
+**magenta** = assembly `KiSystemStartup` stage 1,
+**cyan** = startup C stage 2, **yellow** = exception vectors stage 3,
+**white** = identity-map preparation stage 4. The routine does not call
+UEFI firmware services. The display may remain unchanged if the kernel
+does not execute, if the framebuffer alias/format is unavailable, or if
+the probe itself triggers a failure.
+
+### ABI / static checks
+
+- Baseline kernel export names: **3,363**.
+- Experimental R5.9 export names: **3,376**.
+- **No baseline export names removed**; 13 were added. However, export
+  *ordinals* changed for 3,047 shared names, so ordinal-based consumers
+  should not be assumed compatible.
+- Existing HAL: all **62** imports from ntoskrnl are present by name
+  in R5.9; no ordinal import was observed.
+- **161** existing `System32/drivers/*.sys` files were examined
+  through a temporary **read-only** WSL DrvFs mount (unmounted after
+  inspection); 155 imported 6,861 names from ntoskrnl, all of which
+  exist in R5.9. This is not proof of full runtime ABI compatibility.
+- The staged candidate on SSD was verified byte-for-byte against the
+  WSL output by SHA-256.
+
+### Physical SD staging and rollback
+
+The Hekate USB disk was identified as `hekate SD RAW` (non-system
+USB), FAT32 `D:` labeled `SWITCH SD`, NTFS `L:` labeled
+`LIBERNT-LAB`.
+
+The **original** kernel SHA-256
+`394d34cffce85e26cc6700a1f9751cb08c8ba8ea5adf5835f4e3aaa9ab064479`
+was backed up and SHA-verified on **both** SD FAT32 and laptop SSD:
+
+- `D:\EFI\LiberNT\Experiments\ntoskrnl-R5.8-verified-original.exe`
+- `C:\Users\Public\Documents\LiberNT-Switch-R0\backups\ntoskrnl-R5.8-verified-original.exe`
+
+The new R5.9 image was retained at:
+
+- `C:\Users\Public\Documents\LiberNT-Switch-R0\staging-r5.9\ntoskrnl-R5.9.exe`
+- `D:\EFI\LiberNT\Experiments\ntoskrnl-R5.9-entry-probe.exe`
+
+A checksum-guarded PowerShell selector is tracked at
+`media/doc/ports/switch-r59-kernel-selector.ps1` and copied to
+`C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r5.9-kernel-selector.ps1`.
+It passed syntax parsing and real `-Mode Check` validation of the USB
+device, two kernel backups, Boot Manager, WinLoad, and BCD.
+
+The **only active OS binary replaced** was
+`L:\Windows\System32\ntoskrnl.exe`; `-Mode Install -NewSha <verified hash>`
+completed successfully, and independent readback verified that the
+installed kernel, SD spare, and SSD candidate have the new SHA-256.
+Original backups still have the old SHA-256. The existing R5.9A
+WinLoad, R5.2 Boot Manager, BCD `DEBUGPORT=SCREEN`, Hekate
+`autoboot=0`, Linux partition, and Nintendo eMMC were not changed.
+
+Restoration command after reconnecting SD via Hekate USB Mass Storage:
+
+```powershell
+& 'C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r5.9-kernel-selector.ps1' -Mode Restore -NewSha D35605F76C2F8D235273209A5FE924E1A63375F42F1F679F2EC47DE3E04200B9
+```
+
+**R5.9 physical kernel execution is NOT YET CONFIRMED.** After safely
+ejecting both SD volumes from Windows, boot the existing manual
+`LiberNT R0 - Mariko UEFI PROBE` entry and photograph the upper-right
+area for the magenta/cyan/yellow/white bars. A color bar generated
+from `KiSystemStartup` would be independent proof that execution
+entered the newly built ntoskrnl, which `[SW-A10]` cannot establish.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
