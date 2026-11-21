@@ -1306,6 +1306,100 @@ with `-Mode Check`, then `-Mode Install`. Only after hash-
 verified installation and safe eject attempt the manual UEFI probe
 again. Do not touch Hekate configuration, Linux partition, or eMMC.
 
+## R6.1 physical photo and verified BootVid replacement
+
+A new physical Nintendo Switch Lite image after the R6.0 matched HAL
+deployment shows that WinLoad progressed beyond the previous
+`HalArm64ConnectInterrupt` import error, then reported:
+
+```text
+ntoskrnl.exe needs VidRenderStatusText from bootvid.dll, which does not export it.
+The kernel and the hardware abstraction layer could not be loaded.
+[SW-FU08] StartImage returned: 1
+[SW-DB05] Loader failed
+[RETURNED] Boot Manager exited from fs0:
+```
+
+This is a **load-time import mismatch**, not evidence that the kernel
+ran. The firmware SD FAT32 filesystem was visible as `fs0:`, and the
+previous UEFI Shell `startup.nsh` again reached the Boot Manager.
+
+At this later point the Hekate USB SD was *reconnected*, so the
+"not mounted / no write" preflight note above is historical, not the
+current deployment status. The verified FAT32 `D:` and NTFS `L:`
+volumes were available.
+
+The new R6.1 ARM64 BootVid image was built from the same source tree
+as R5.9 ntoskrnl; the independently prepared, checksum-guarded
+`switch-r6.1-bootvid-selector.ps1` variant was already staged by
+another concurrent session. To avoid conflicting experimental
+artifacts, the existing R6.1 candidate/selector were reused after
+independent read-only PE and dependency verification rather than
+overwriting the competing candidate.
+
+- Old active `bootvid.dll`: SHA-256
+  `53cc4a992e2b318d8f1c0325e1b69f74e1f041b99ea2f5c066d3382ebd5dccfe`,
+  1,011,712 bytes.
+- Staged and subsequently installed R6.1 `bootvid.dll`: SHA-256
+  `2d40aab426d65b858af10ce73105eba45f4f4b60c6056b227aa1f9ba9a1372b6`,
+  1,437,696 bytes, PE32+ ARM64.
+- New BootVid exports `VidRenderStatusText`. All **16** functions
+  imported by R5.9 ntoskrnl from BootVid are present.
+- A separate local build of BootVid produced another SHA due to
+  nonidentical build artifacts/settings; it was NOT substituted for
+  the validated staged R6.1 candidate.
+- `-Mode Install` completed successfully. The active
+  `L:\Windows\System32\bootvid.dll` readback matches the exact staged
+  R6.1 SHA-256. Two verified original backups were created:
+  `D:\EFI\LiberNT\Experiments\bootvid-R6.0-original.dll` and
+  `C:\Users\Public\Documents\LiberNT-Switch-R0\backups\bootvid-R6.0-original.dll`.
+  R6.1 staging copy remains under
+  `D:\EFI\LiberNT\Experiments\bootvid-R6.1-matched-kernel.dll`.
+- `-Mode Check` passed after installation; hashes of
+  R5.9 ntoskrnl, R6.0 HAL, R5.9A WinLoad and R5.2 Boot Manager were
+  verified unchanged.
+
+### Important fallback-kernel caveat
+
+A read-only scan of **938** installed System32 DLL, EXE and driver
+files identified two BootVid import consumers. Current
+`ntoskrnl.exe` imports the 16 symbols now provided by R6.1. Older
+fallback `ntkrnlmp.exe` still imports `VidFadeToBlack`, which
+the R6.1 BootVid does **not** export (the new BootVid exports
+`VidRenderStatusText` and `VidUseCompactFont` instead).
+Thus **do not switch to ntkrnlmp.exe while R6.1 BootVid is active**
+without restoring the original BootVid or addressing this ABI
+difference. Full compatibility is not established.
+
+Additional static dependency-closure check of the active
+core component set found **no missing named imports**:
+
+- `ntoskrnl.exe -> hal.dll`: 45/45 present.
+- `ntoskrnl.exe -> bootvid.dll`: 16/16 present.
+- `ntoskrnl.exe -> kdcom.dll`: 1/1 present.
+- `hal.dll -> ntoskrnl.exe`: 78/78 present.
+- `bootvid.dll -> ntoskrnl.exe`: 16/16 present.
+- `kdcom.dll -> ntoskrnl.exe`: 2/2 present.
+
+These are **static, named-exports checks only**, not a successful
+loader run or runtime ABI guarantee.
+
+**R6.1 physical boot result pending.** Safely eject both `D:` and
+`L:` in Windows, exit Hekate USB Mass Storage, run
+`More Configs -> LiberNT R0 - Mariko UEFI PROBE` and photograph
+the first new error, trace, or framebuffer color bars. The firmware
+Shell fallback may still execute `startup.nsh`.
+
+The original BootVid can be restored after reconnection:
+
+```powershell
+& 'C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r6.1-bootvid-selector.ps1' -Mode Restore
+```
+
+No Hekate configuration, Linux partition or internal Nintendo eMMC
+was modified as part of the R6.1 BootVid installation. No kernel
+execution on real Switch Lite is claimed yet.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
