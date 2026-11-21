@@ -379,6 +379,24 @@ Arm64KernelJumpTrace(
         case 2:
             Arm64TrapScreenRoutine("[SW-A02] Kernel stack selected\n");
             break;
+        case 3:
+            Arm64TrapScreenRoutine("[SW-A03] Interrupts masked\n");
+            break;
+        case 4:
+            Arm64TrapScreenRoutine("[SW-A04] Cache maintenance begin\n");
+            break;
+        case 5:
+            Arm64TrapScreenRoutine("[SW-A05] Cache maintenance returned\n");
+            break;
+        case 6:
+            Arm64TrapScreenRoutine("[SW-A06] TTBR0 identity clear begin\n");
+            break;
+        case 7:
+            Arm64TrapScreenRoutine("[SW-A07] TTBR0 clear returned\n");
+            break;
+        case 8:
+            Arm64TrapScreenRoutine("[SW-A08] Final kernel branch next\n");
+            break;
         default:
             break;
     }
