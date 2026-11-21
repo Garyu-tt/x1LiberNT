@@ -22,7 +22,7 @@
 .macro SWITCH_ASM_MARK stage
     stp x19, x20, [sp, #-32]!
     stp x21, x30, [sp, #16]
-    mov w0, #\\stage
+    mov w0, #\stage
     bl Arm64KernelJumpTrace
     ldp x21, x30, [sp, #16]
     ldp x19, x20, [sp], #32
