@@ -163,8 +163,27 @@ Arm64JumpToKernel:
     /* Direct branch to kernel */
 #ifdef LIBERNT_SWITCH_HANDOFF_TRACE
     SWITCH_ASM_MARK 8
+
+    /*
+     * R5.9A: test translation of the REAL kernel entry PC (x19), not
+     * a hardcoded address. AT only reports Stage-1 read translation
+     * and does not prove instruction execute permission.
+     */
+    at s1e1r, x19
+    isb
+    mrs x22, par_el1
+    tbnz x22, #0, .Lswitch_entry_va_fault
+    SWITCH_ASM_MARK 10
 #endif
     br x19
 
     /* Should never reach here */
     b .
+
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+.Lswitch_entry_va_fault:
+    SWITCH_ASM_MARK 9
+.Lswitch_entry_halt:
+    wfe
+    b .Lswitch_entry_halt
+#endif
