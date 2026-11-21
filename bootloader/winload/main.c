@@ -14,6 +14,22 @@
 #define OSL_SWITCH_TRACE(Text) ((VOID)0)
 #endif
 
+/*
+ * The ARM64 handoff disables UEFI Boot Services. Do not use firmware text
+ * output or the logging/serial machinery in the critical post-exit test:
+ * the existing framebuffer trap console survives the transition.
+ *
+ * The normal loader path remains unchanged when the experiment is off.
+ */
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+extern VOID (*Arm64TrapScreenRoutine)(PCSTR Text);
+#define OSL_SWITCH_POST(Text) do { \
+    if (Arm64TrapScreenRoutine) Arm64TrapScreenRoutine(Text); \
+} while (0)
+#else
+#define OSL_SWITCH_POST(Text) ((VOID)0)
+#endif
+
 #define OSL_STACK_SIZE    0x40000
 #define OSL_MAX_ENTRIES   16
 #define OSL_KERNEL_MODULE "ntoskrnl.exe"
@@ -560,7 +576,15 @@ OslMain(VOID)
         return;
     }
 
-    OSL_SWITCH_TRACE(L"[SW-WL35] Kernel address space prepared\r\n");
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+    /*
+     * Real Switch Lite R5.4 reached [SW-HO15] but not the following
+     * wide-string log. Skip firmware/log serial output after EBS so that
+     * the diagnostic itself cannot mask a successful handoff.
+     */
+    OSL_SWITCH_POST("[SW-WL35] Kernel address space prepared (post-EBS)\n");
+    OSL_SWITCH_POST("[SW-WL36] Entering OslArchStartKernel\n");
+#else
     OslTrace("OS loader: handing over, boot device %s, hal device %s",
              LoaderBlock->ArcBootDeviceName ? LoaderBlock->ArcBootDeviceName : "(none)",
              LoaderBlock->ArcHalDeviceName ? LoaderBlock->ArcHalDeviceName : "(none)");
@@ -573,8 +597,8 @@ OslMain(VOID)
              LoaderBlock->ArcDiskInformation,
              LoaderBlock->RegistryLength,
              LoaderBlock->RegistryBase);
+#endif
 
-    OSL_SWITCH_TRACE(L"[SW-WL36] OslArchStartKernel begin\r\n");
     OslArchStartKernel(Kernel->EntryPoint, PaToVa(LoaderBlock));
 }
 
