@@ -236,7 +236,7 @@ problems, a temporary one-shot diagnostic was added:
   partition and internal eMMC were not modified during this diagnostic
   update.
 
-**R5.1 physical result is pending.** Safely eject Hekate USB storage, boot
+**R5.1 physical result is now confirmed; see the R5.2 section and the subsequent R5.3 photo evidence.** Safely eject Hekate USB storage, boot
 the manual `LiberNT R0 - Mariko UEFI PROBE` configuration, and photograph
 the last `[SW-DBxx]` checkpoint or any new failure message.
 A successful `winload` or kernel boot is not assumed.
@@ -305,12 +305,78 @@ script was parsed successfully and stored at:
 The BCD store, Hekate configuration, existing Linux partition and internal
 Nintendo eMMC were **not** changed. Hekate remains `autoboot=0`.
 
-**R5.2 physical-console result is still pending.** After safely ejecting
+**R5.2 physical-console result is confirmed in the next section.** After safely ejecting
 Hekate USB Mass Storage, start the manual `LiberNT R0 - Mariko UEFI PROBE`
 profile and record the last `[SW-FWxx]`, `[SW-UEFI-Exx]` and
 `[SW-WLxx]` checkpoints. If `[SW-FW07]` appears but no WinLoad
 entry checkpoint is displayed, further inspect `StartImage`/
 firmware entry rather than assuming a kernel failure.
+
+## R5.3: physical WinLoad entry confirmed, deeper storage/kernel tracing
+
+The **physical Switch Lite photograph of the R5.2 diagnostic** confirms
+execution in the real WinLoad application, not merely the Boot Manager's
+request to start it. Visible milestones include:
+
+```text
+[SW-FW07] StartImage begin
+[SW-UEFI-E00] Shared EFI entry reached
+[SW-UEFI-E01] Firmware watchdog disabled
+[SW-WL00] BlMain entered
+[SW-WL01] Announce completed
+[SW-WL02] OslArchInitialize begin
+[SW-WL03] OslArchInitialize done
+[SW-WL04] Memory manager begin
+[SW-WL05] Memory manager done
+[SW-WL06] Allocating loader stack
+[SW-WL07] Switching loader stack
+[SW-WL08] Loader stack active
+[SW-WL09] Selecting boot entry
+[SW-WL10] Boot entry selected
+```
+
+**Interpretation:** The physical console has executed ARM64 WinLoad,
+initialized the memory manager, switched to the loader stack, and selected
+an OS boot entry. The last observed checkpoint is `[SW-WL10]`; it does
+**not** prove successful `OslGetParameters`, opening the OS device,
+loading the SYSTEM registry hive, reading kernel or HAL binaries, or
+starting the kernel. The absence of later markers is not a backtrace.
+
+Commit `dc2b06fd48fc9a73c7da38f2925782cb2e3de21a` adds opt-in
+`[SW-WL11]`–`[SW-WL36]` checkpoints in
+`bootloader/winload/main.c`, specifically around boot parameter parsing,
+OS device resolution, loader block and configuration tree, SYSTEM hive,
+kernel and HAL module load, import resolution, NLS, boot drivers and
+`OslArchStartKernel`. This modifies only the trace-enabled build.
+
+### R5.3 build / staging
+
+- LLVM 24 ARM64 EFI build succeeded in WSL on the connected laptop.
+- PE32+ ARM64 `winload.efi`, 1,329,664 bytes.
+- SHA-256 `021b85b733c1bdd95850f58a467e50a7322cde00cf4573556e442abf6a9f385b`.
+- A **standalone headless QEMU** test of that exact EFI file reached
+  `[SW-WL09] Selecting boot entry`. QEMU lacks the physical SD BCD
+  setup used by the console, so its inability to reach `[SW-WL10]`
+  is not a hardware regression.
+- After confirming the Hekate USB disk, labels, partition offsets and
+  prior file hashes, **only** `L:\Windows\System32\winload.efi` was
+  replaced with R5.3; SHA-256 after copying matched the build.
+- `D:\EFI\BOOT\BOOTAA64.EFI` remained R5.2 Boot Manager
+  (SHA-256 `562f0307ed8fec5339c0e9efec2cad26a027d910999c0de9cf8dff05e5c61b48`).
+- `D:\EFI\LiberNT\Boot\BCD` remained unchanged
+  (SHA-256 `f512a1d7a291c8ccb58a225feb3284171abd8eab48af1de4c7d125baf0864e63`).
+- R5.2 WinLoad backups are verified on SSD and FAT32 under
+  `D:\EFI\LiberNT\Experiments\winload-R5.2-confirmed-physical.EFI`.
+- Rollback script created and PowerShell syntax-checked:
+  `C:\Users\Public\Documents\LiberNT-Switch-R0\restore-winload-r5.2-from-r5.3.ps1`.
+  It is not executed unless restoration is requested or necessary.
+- Hekate/Linux partitions and Nintendo eMMC were not changed.
+
+**R5.3 physical-console result is pending.** On the next manual boot,
+record the last `[SW-WLxx]` marker to narrow the failure toward BCD
+boot parameters, SD device access, SYSTEM hive, or kernel image loading.
+Do not claim a successful kernel entry until `[SW-WL36]` and a separate
+kernel-side marker are observed.
 
 ## Next milestone
 
