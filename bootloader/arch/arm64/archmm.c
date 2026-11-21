@@ -10,6 +10,22 @@
 #include <reactos/arm64/early_uart.h>
 #include "../../winload/winload.h"
 
+/*
+ * Switch Lite pre-kernel handoff checkpoints. Firmware text output is safe
+ * ONLY before ExitBootServices; after that, use the already-installed
+ * framebuffer debug callback (which itself checks translation validity).
+ * Off in normal LiberNT builds.
+ */
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+#define SWITCH_HO_PRE(Message) FwPrint(Message)
+#define SWITCH_HO_POST(Message) do { \
+    if (Arm64TrapScreenRoutine) Arm64TrapScreenRoutine(Message); \
+} while (0)
+#else
+#define SWITCH_HO_PRE(Message) ((VOID)0)
+#define SWITCH_HO_POST(Message) ((VOID)0)
+#endif
+
 BOOLEAN Arm64IsKernelVaMapped(ULONGLONG Va);
 
 #include <reactos/arm64/earlyfont.h>
@@ -245,29 +261,61 @@ BOOLEAN
 OslArchPrepareHandoff(
     _Inout_ PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
+    SWITCH_HO_PRE(L"[SW-HO00] WinLdrSetupMachineDependent begin\r\n");
     WinLdrSetupMachineDependent(LoaderBlock);
+    SWITCH_HO_PRE(L"[SW-HO01] Machine-dependent setup completed\r\n");
 
+    SWITCH_HO_PRE(L"[SW-HO02] WinLdrSetupMemoryLayout begin\r\n");
     if (!WinLdrSetupMemoryLayout(LoaderBlock))
+    {
+        SWITCH_HO_PRE(L"[SW-HO-ERR] WinLdrSetupMemoryLayout returned FALSE\r\n");
         return FALSE;
+    }
+    SWITCH_HO_PRE(L"[SW-HO03] WinLdrSetupMemoryLayout completed\r\n");
 
+    SWITCH_HO_PRE(L"[SW-HO04] Arm64PreparePageTables begin\r\n");
     Arm64PreparePageTables();
+    SWITCH_HO_PRE(L"[SW-HO05] Arm64PreparePageTables completed\r\n");
+
     if (FrameBufferData && VramAddress)
     {
         ULONGLONG FrameBase = VramAddress + FrameBufferData->FrameBufferOffset;
         ULONGLONG FrameEnd = FrameBase + (ULONGLONG)FrameBufferData->PixelsPerScanLine * FrameBufferData->ScreenHeight * sizeof(ULONG);
 
+        SWITCH_HO_PRE(L"[SW-HO06] Framebuffer alias mapping begin\r\n");
         FrameBase &= ~((ULONGLONG)MM_PAGE_SIZE - 1);
         FrameEnd = (FrameEnd + MM_PAGE_SIZE - 1) & ~((ULONGLONG)MM_PAGE_SIZE - 1);
         if (!Arm64IsKernelVaMapped(ARM64_PHYS_MAP_BASE | FrameBase) &&
             !Arm64MapVirtualMemory(ARM64_PHYS_MAP_BASE | FrameBase, FrameBase, FrameEnd - FrameBase, ARM64_MEM_ATTR_NORMAL_WC))
+        {
+            SWITCH_HO_PRE(L"[SW-HO-WARN] Framebuffer alias mapping failed\r\n");
             ERR("winload: framebuffer alias mapping failed\n");
+        }
+        SWITCH_HO_PRE(L"[SW-HO07] Framebuffer alias mapping returned\r\n");
     }
+    else
+    {
+        SWITCH_HO_PRE(L"[SW-HO07] No framebuffer data to map\r\n");
+    }
+
+    SWITCH_HO_PRE(L"[SW-HO08] OslFbPrepare begin\r\n");
     OslFbPrepare();
+    SWITCH_HO_PRE(L"[SW-HO09] OslFbPrepare completed\r\n");
+
+    /* This is the last guaranteed EFI console checkpoint. */
+    SWITCH_HO_PRE(L"[SW-HO10] ExitBootServices begin\r\n");
     FwExitBootServices();
+
+    /* Never use firmware FwPrint after ExitBootServices. */
+    SWITCH_HO_POST("[SW-HO11] ExitBootServices returned\n");
     Arm64StopFirmwareWatchdog();
+    SWITCH_HO_POST("[SW-HO12] Firmware watchdog stopped\n");
     Arm64SetVbarAuto((ULONG_PTR)arm64_exception_vectors);
+    SWITCH_HO_POST("[SW-HO13] Exception vectors set\n");
     WinLdrSetProcessorContext(OSL_NT_VERSION);
+    SWITCH_HO_POST("[SW-HO14] Processor context set\n");
     RtlZeroMemory((PVOID)KI_USER_SHARED_DATA, MM_PAGE_SIZE);
+    SWITCH_HO_POST("[SW-HO15] User shared page cleared\n");
     return TRUE;
 }
 
