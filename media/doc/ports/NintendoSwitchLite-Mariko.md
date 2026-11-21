@@ -937,6 +937,14 @@ Stage-1 translation regime at the final WinLoad handoff. The loader
 was still running following its TTBR0 cleanup and at the point just
 before `br x19`.
 
+Static read-only validation of the unchanged SD kernel PE:
+`ntoskrnl.exe` has ARM64 machine `0xAA64`, entry RVA
+`0x00012400`, and the entrypoint lies inside PE section `.text`
+with image characteristics `0x68000020`, including executable
+section flag `IMAGE_SCN_MEM_EXECUTE`. This verifies the **on-disk
+PE section attribute**, not the permissions installed by the live
+ARM64 page tables.
+
 **Not confirmed:** executable permission (PXN / UXN), the branch's
 successful completion, execution of `KiSystemStartup`, or stable
 kernel startup. `[SW-A10]` is emitted by WinLoad, not by ntoskrnl.
