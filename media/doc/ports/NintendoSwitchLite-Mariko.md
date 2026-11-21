@@ -435,6 +435,102 @@ future BCD changes; do not overwrite it when its contents differ.
 screen-debug BCD in a separate, one-variable experiment. A visible kernel
 entry should be established independently from loader messages.
 
+## R5.4: physical R5.3 stops in ARM64 kernel address-space preparation
+
+A new **physical Nintendo Switch Lite photograph** confirms that WinLoad
+R5.3 progresses much further than the previous R5.2 photo. Visible
+checkpoints include:
+
+```text
+[SW-WL11] Reading boot parameters begin
+[SW-WL12] Boot parameters parsed
+[SW-WL13] OS device resolution begin
+[SW-WL14] OS device resolution completed
+[SW-WL15] Loader block allocation begin
+[SW-WL16] Loader block allocated
+[SW-WL17] Configuration tree begin
+[SW-WL18] Configuration tree returned
+[SW-WL19] SYSTEM hive load begin
+[SW-WL20] SYSTEM hive loaded
+[SW-WL21] Kernel image load begin
+[SW-WL22] Kernel load returned
+[SW-WL23] HAL image load begin
+[SW-WL24] HAL load returned
+[SW-WL25] Driver/import checks begin
+[SW-WL26] Driver/import checks completed
+[SW-WL27] NLS load begin
+[SW-WL28] NLS loaded
+[SW-WL29] Boot driver list load begin
+[SW-WL30] Boot driver list built
+[SW-WL31] Driver database scan returned
+[SW-WL32] Finalize loader block begin
+[SW-WL33] Loader block finalized
+[SW-WL34] Kernel address space preparation begin
+```
+
+The last visible marker is **`[SW-WL34]`**. No `[SW-WL35]` or
+`[SW-WL36]` appears. This localizes the next research target to
+`OslArchPrepareHandoff(LoaderBlock)` in
+`bootloader/arch/arm64/archmm.c`. It **does not prove the kernel
+has started**; nor does it identify the exact internal call without
+further checkpoints.
+
+### R5.4 instrumentation, source and hardware staging
+
+New opt-in diagnostics were committed on `switch-lite-mariko-r0`:
+
+- `bootloader/arch/arm64/archmm.c`: `[SW-HO00]`–`[SW-HO15]`
+  trace machine-specific setup, `WinLdrSetupMemoryLayout`, page-table
+  initialization, framebuffer alias mapping, framebuffer console setup,
+  `ExitBootServices`, watchdog/vector/processor-context initialization,
+  and shared user page initialization.
+- `bootloader/winload/memory.c`: `[SW-ML00]`–`[SW-ML12]`
+  trace memory allocation, EFI memory map synchronization, mappings,
+  runtime service descriptors, and loader descriptor conversion.
+- `bootloader/CMakeLists.txt`: ensure `LIBERNT_SWITCH_HANDOFF_TRACE`
+  applies to `winload`, which actually compiles both the relevant files.
+- Pre-`ExitBootServices` messages use `FwPrint`. **After** the firmware
+  services are gone they use the existing `Arm64TrapScreenRoutine`
+  framebuffer callback, if installed and mapped; they must **never**
+  invoke UEFI console services at that stage. Missing post-exit
+  markers cannot by themselves prove no instruction was executed.
+
+Build succeeded in WSL LLVM 24 using the existing ARM64 Debug toolchain.
+The `winload.efi` artifact is 1,332,736 bytes, PE32+ ARM64 EFI, SHA-256
+`a8b2a8276839aaa546b0c0a04e4796b034d89f1f093e6a7f6518df6c74f9b38d`.
+Strings inspection confirmed all selected UTF-16 and ASCII markers.
+Standalone QEMU EDK2 boot of the exact image reached
+`[SW-WL09]`, consistent with previous FAT-only QEMU runs; the
+handoff path is **not** exercised in that virtual configuration.
+
+On the physical Hekate SD (disk `hekate SD RAW`, USB, `D:` FAT32
+`SWITCH SD`, `L:` NTFS `LIBERNT-LAB`), the original R5.3
+WinLoad SHA-256 `021b85b733c1bdd95850f58a467e50a7322cde00cf4573556e442abf6a9f385b`
+was verified and saved to:
+
+- `C:\Users\Public\Documents\LiberNT-Switch-R0\backups\winload-R5.3-confirmed-physical.EFI`
+- `D:\EFI\LiberNT\Experiments\winload-R5.3-confirmed-physical.EFI`
+
+R5.4 was copied to
+`D:\EFI\LiberNT\Experiments\winload-R5.4-handoff-trace.EFI`
+and then installed **only** at
+`L:\Windows\System32\winload.efi`. SHA-256 matched after installation.
+
+The active R5.2 Boot Manager remained
+`D:\EFI\BOOT\BOOTAA64.EFI`, SHA-256
+`562f0307ed8fec5339c0e9efec2cad26a027d910999c0de9cf8dff05e5c61b48`.
+The live BCD retained `DEBUGPORT=FILE`. No BCD, partition,
+Hekate or eMMC mutation was made as part of this R5.4 deployment.
+
+Rollback script prepared and syntax-checked at
+`C:\Users\Public\Documents\LiberNT-Switch-R0\restore-winload-r5.3-from-r5.4.ps1`;
+it is not run automatically.
+
+**R5.4 real-device result remains pending.** Boot Hekate's existing
+manual `LiberNT R0 - Mariko UEFI PROBE` entry after ejecting both host
+volumes, and photograph the last `[SW-HO]` and `[SW-ML]` markers.
+Do not change BCD or install a new kernel in the same experiment.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
