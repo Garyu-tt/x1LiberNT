@@ -383,6 +383,7 @@ OslMain(VOID)
         return;
     OSL_SWITCH_TRACE(L"[SW-WL10] Boot entry selected\r\n");
 
+    OSL_SWITCH_TRACE(L"[SW-WL11] Reading boot parameters begin\r\n");
     OslTrace("OS loader: reading the boot entry");
 
     if (!OslGetParameters(Entry, &OslParameters) ||
@@ -392,6 +393,7 @@ OslMain(VOID)
         FwPrint(L"The boot entry has no usable OS device, system root or load options.\r\n");
         return;
     }
+    OSL_SWITCH_TRACE(L"[SW-WL12] Boot parameters parsed\r\n");
 
     AppendBootTimeOptions(Options, sizeof(Options), &OslStartup);
     if (!FwDebugEnabled && OslDebugRequested(Options))
@@ -407,6 +409,7 @@ OslMain(VOID)
 
     OslTrace("OS loader: system root %s, options %s", SystemRoot, Options);
 
+    OSL_SWITCH_TRACE(L"[SW-WL13] OS device resolution begin\r\n");
     if (OslParameters.OsDevice.Ramdisk)
     {
         if (OslGetOption(Options, OSL_DOWNLOAD_URL_OPTION, Url, sizeof(Url)))
@@ -454,9 +457,11 @@ OslMain(VOID)
         }
     }
 
+    OSL_SWITCH_TRACE(L"[SW-WL14] OS device resolution completed\r\n");
     PeSetSystemRoot(SystemRoot);
     RtlStringCbPrintfA(Directory, sizeof(Directory), "%ssystem32\\", SystemRoot);
 
+    OSL_SWITCH_TRACE(L"[SW-WL15] Loader block allocation begin\r\n");
     LoaderBlock = OslAllocateLoaderBlock();
     if (!LoaderBlock)
     {
@@ -464,8 +469,12 @@ OslMain(VOID)
         return;
     }
 
+    OSL_SWITCH_TRACE(L"[SW-WL16] Loader block allocated\r\n");
+    OSL_SWITCH_TRACE(L"[SW-WL17] Configuration tree begin\r\n");
     LoaderBlock->ConfigurationRoot = OslBuildConfigurationTree(LoaderBlock);
+    OSL_SWITCH_TRACE(L"[SW-WL18] Configuration tree returned\r\n");
 
+    OSL_SWITCH_TRACE(L"[SW-WL19] SYSTEM hive load begin\r\n");
     OslTrace("OS loader: loading the SYSTEM hive");
     if (!OslLoadSystemHive(LoaderBlock, &OsDevice, SystemRoot))
     {
@@ -473,13 +482,17 @@ OslMain(VOID)
         return;
     }
 
+    OSL_SWITCH_TRACE(L"[SW-WL20] SYSTEM hive loaded\r\n");
     OslTrace("OS loader: loading %ls and %ls", OslParameters.KernelFile, OslParameters.HalFile);
+    OSL_SWITCH_TRACE(L"[SW-WL21] Kernel image load begin\r\n");
     Kernel = OslLoadCoreImage(LoaderBlock,
                               &OsDevice,
                               Directory,
                               OslParameters.KernelFile,
                               OSL_KERNEL_MODULE,
                               LoaderSystemCode);
+    OSL_SWITCH_TRACE(L"[SW-WL22] Kernel load returned\r\n");
+    OSL_SWITCH_TRACE(L"[SW-WL23] HAL image load begin\r\n");
     Hal = Kernel ? OslLoadCoreImage(LoaderBlock,
                                     &OsDevice,
                                     Directory,
@@ -487,9 +500,11 @@ OslMain(VOID)
                                     OSL_HAL_MODULE,
                                     LoaderHalCode)
                  : NULL;
+    OSL_SWITCH_TRACE(L"[SW-WL24] HAL load returned\r\n");
     if (Hal && OslHasDebugPort(Options, "NET"))
         OslLoadNetworkDebugger(LoaderBlock, &OsDevice, Directory);
 
+    OSL_SWITCH_TRACE(L"[SW-WL25] Driver/import checks begin\r\n");
     if (!Hal ||
         (FrameBufferData &&
          !PeLoadModule(&LoaderBlock->LoadOrderListHead,
@@ -507,6 +522,8 @@ OslMain(VOID)
         return;
     }
 
+    OSL_SWITCH_TRACE(L"[SW-WL26] Driver/import checks completed\r\n");
+    OSL_SWITCH_TRACE(L"[SW-WL27] NLS load begin\r\n");
     OslTrace("OS loader: loading the NLS files");
     if (!OslLoadNlsData(LoaderBlock, &OsDevice, SystemRoot))
     {
@@ -514,6 +531,8 @@ OslMain(VOID)
         return;
     }
 
+    OSL_SWITCH_TRACE(L"[SW-WL28] NLS loaded\r\n");
+    OSL_SWITCH_TRACE(L"[SW-WL29] Boot driver list load begin\r\n");
     OslTrace("OS loader: loading the boot drivers");
     if (!OslLoadBootDrivers(LoaderBlock, &OsDevice, SystemRoot))
     {
@@ -521,14 +540,19 @@ OslMain(VOID)
         return;
     }
 
+    OSL_SWITCH_TRACE(L"[SW-WL30] Boot driver list built\r\n");
     OslLoadDriverDatabase(LoaderBlock, &OsDevice, SystemRoot);
+    OSL_SWITCH_TRACE(L"[SW-WL31] Driver database scan returned\r\n");
 
+    OSL_SWITCH_TRACE(L"[SW-WL32] Finalize loader block begin\r\n");
     if (!OslFinalizeLoaderBlock(LoaderBlock, &OsDevice, SystemRoot, Options))
     {
         FwPrint(L"The operating system partition has no partition number.\r\n");
         return;
     }
 
+    OSL_SWITCH_TRACE(L"[SW-WL33] Loader block finalized\r\n");
+    OSL_SWITCH_TRACE(L"[SW-WL34] Kernel address space preparation begin\r\n");
     OslTrace("OS loader: preparing the kernel address space");
     if (!OslArchPrepareHandoff(LoaderBlock))
     {
@@ -536,6 +560,7 @@ OslMain(VOID)
         return;
     }
 
+    OSL_SWITCH_TRACE(L"[SW-WL35] Kernel address space prepared\r\n");
     OslTrace("OS loader: handing over, boot device %s, hal device %s",
              LoaderBlock->ArcBootDeviceName ? LoaderBlock->ArcBootDeviceName : "(none)",
              LoaderBlock->ArcHalDeviceName ? LoaderBlock->ArcHalDeviceName : "(none)");
@@ -549,6 +574,7 @@ OslMain(VOID)
              LoaderBlock->RegistryLength,
              LoaderBlock->RegistryBase);
 
+    OSL_SWITCH_TRACE(L"[SW-WL36] OslArchStartKernel begin\r\n");
     OslArchStartKernel(Kernel->EntryPoint, PaToVa(LoaderBlock));
 }
 
