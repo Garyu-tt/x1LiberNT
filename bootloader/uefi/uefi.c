@@ -933,8 +933,17 @@ EfiEntry(
 {
     GlobalImageHandle = ImageHandle;
     GlobalSystemTable = SystemTable;
+#ifdef LIBERNT_SWITCH_WINLOAD_TRACE
+    if (SystemTable && SystemTable->ConOut && SystemTable->ConOut->OutputString)
+        SystemTable->ConOut->OutputString(SystemTable->ConOut,
+                                          L"[SW-WL-E00] WinLoad EfiEntry entered\r\n");
+#endif
     SystemTable->BootServices->SetWatchdogTimer(0, 0, 0, NULL);
-
+#ifdef LIBERNT_SWITCH_WINLOAD_TRACE
+    if (SystemTable && SystemTable->ConOut && SystemTable->ConOut->OutputString)
+        SystemTable->ConOut->OutputString(SystemTable->ConOut,
+                                          L"[SW-WL-E01] Watchdog disabled\r\n");
+#endif
     BlMain();
     return EFI_LOAD_ERROR;
 }
