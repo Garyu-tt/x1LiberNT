@@ -1134,6 +1134,114 @@ kernel bars.
 also be skipped with ESC at the EDK II Shell startup prompt.
 Do not touch the internal eMMC or reformat SD.
 
+## R6.0: physical shell fallback revealed kernel/HAL export mismatch
+
+The second physical Switch Lite photo after installing the UEFI Shell
+`startup.nsh` confirms that the FAT32 filesystem was accessible as
+`FS0:`, and the fallback script **ran successfully** and launched
+`fs0:\EFI\BOOT\BOOTAA64.EFI`. Boot Manager and WinLoad then
+returned with an explicit binary import-resolution error:
+
+```text
+ntoskrnl.exe needs HalArm64ConnectInterrupt from hal.dll, which does not export it.
+The kernel and the hardware abstraction layer could not be loaded.
+[SW-FU08] StartImage returned: 1
+[SW-DB16] FwStartImage returned
+\Windows\system32\winload.efi did not start the operating system.
+[SW-DB02] BmStartApplication returned
+[SW-DB05] Loader failed
+[RETURNED] Boot Manager exited from fs0:
+```
+
+This corrects the previous hypothesis: UEFI SD detection works and the
+new kernel is being rejected **before execution**, due to a
+version mismatch between the R5.9 kernel and the previously installed
+HAL. The old loader's `[SW-A10]` read-translation success belongs to
+a test with the older kernel and does not establish kernel entry.
+
+### Verified missing dependencies
+
+Read-only PE analysis of the installed HAL (SHA-256
+`e7cc37d649d4178247a0dfb490884a6523c32126af1fe80bb32329be43e9ac45`)
+against the R5.9 `ntoskrnl.exe` found **three** imports absent
+from the old HAL:
+
+- `HalArm64ConnectInterrupt`
+- `HalArm64DisconnectInterrupt`
+- `HalpAcpiQueryFaults`
+
+All three are implemented and exported by the current source tree.
+Building the **matching ARM64 HAL from the same source as R5.9** took
+181 Ninja steps and succeeded. The new `hal.dll` is PE32+ ARM64,
+2,105,344 bytes, SHA-256:
+
+`ec484cce061d7722ff8f3f44445f5dda32ff0bb787da359604d2909005f52993`.
+
+Its exports contain all **142** old HAL export names plus seven
+additional names (149 total). No export names were removed. **94**
+shared export ordinals changed, which could affect ordinal consumers
+even though name-based lookups are complete.
+
+The new kernel imports **45** HAL symbols and all 45 exist in the
+new HAL; the new HAL imports **78** kernel symbols and all 78 are
+exported by R5.9. A read-only inspection of 937 installed system PE
+files found 19 modules importing HAL (145 total imported symbols).
+All 145 imports resolve by name against the new HAL; no ordinal-only
+HAL imports were found among these checked files. These static checks
+are not a full runtime compatibility guarantee.
+
+### Safe hardware staging and installation
+
+Target explicitly verified: `hekate SD RAW`, USB, non-system disk,
+FAT32 `D:` labeled `SWITCH SD`, NTFS `L:` labeled `LIBERNT-LAB`.
+Before copying, the active Boot Manager, R5.9A WinLoad, R5.9 kernel,
+old HAL and BCD `DEBUGPORT=SCREEN` were hash/config-verified.
+
+The **old HAL** was backed up and SHA-verified in both places:
+
+- `C:\Users\Public\Documents\LiberNT-Switch-R0\backups\hal-R5.9-confirmed-physical.dll`
+- `D:\EFI\LiberNT\Experiments\hal-R5.9-confirmed-physical.dll`
+
+The new candidate was staged and verified:
+
+- Notebook: `C:\Users\Public\Documents\LiberNT-Switch-R0\staging-r6.0\hal-R6.0.dll`
+- FAT32: `D:\EFI\LiberNT\Experiments\hal-R6.0-matched-kernel.dll`
+
+**Only** `L:\Windows\System32\hal.dll` was replaced.
+Post-install SHA-256 matched the new HAL. The following were
+re-verified unchanged:
+
+- R5.9 `ntoskrnl.exe` SHA-256 `d35605f76c2f8d235273209a5fe924e1a63375f42f1f679f2ec47de3e04200b9`
+- R5.9A `winload.efi` SHA-256 `6dc1602d4d96255a261afa2f29e1946ba1010cd498c679d3c84f0ad6fba47375`
+- R5.2 Boot Manager SHA-256 `562f0307ed8fec5339c0e9efec2cad26a027d910999c0de9cf8dff05e5c61b48`
+- BCD remained `KDWATCHDOG=0 DEBUGPORT=SCREEN`.
+- No writes were made to Hekate config, Linux partition or Switch eMMC.
+
+A guarded HAL rollback/reapply script was added to the repository at
+`media/doc/ports/switch-r60-hal-selector.ps1` and placed on the
+laptop at
+`C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r6.0-hal-selector.ps1`.
+It supports `-Mode Check`, `-Mode Install`, `-Mode Restore`,
+requires exact USB volume identities and SHA-256 checks, and has
+been syntax-tested and executed **read-only with -Mode Check**.
+
+**R6.0 physical test pending:** safely eject Windows volumes `D:`
+and `L:`, leave Hekate USB Mass Storage, and run the same
+`More Configs → LiberNT R0 - Mariko UEFI PROBE` profile. With
+`startup.nsh` still present, firmware Shell can automatically
+invoke the Boot Manager. Photograph the first new WinLoad error
+or the upper-right kernel entry color bars. If the original export
+error disappears, the HAL mismatch was addressed; a further
+error or lack of color bars will localize the next failing stage.
+
+To roll back the *HAL only*, reattach SD via Hekate USB Mass Storage
+and run:
+```powershell
+& 'C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r6.0-hal-selector.ps1' -Mode Restore
+```
+
+The kernel has **not** yet been confirmed to execute on Switch Lite.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
