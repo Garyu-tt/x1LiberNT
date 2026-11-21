@@ -116,6 +116,14 @@ endif()
 
 add_library(bootlib ${BOOTLIB_SOURCE})
 target_link_libraries(bootlib fatfs)
+# The UEFI entry and StartImage implementation are compiled in bootlib, not
+# in either bootmgfw or winload. Lab flags must be defined on this target.
+if(ARCH STREQUAL "arm64" AND LIBERNT_SWITCH_HANDOFF_TRACE)
+    target_compile_definitions(bootlib PRIVATE LIBERNT_SWITCH_STARTIMAGE_TRACE=1)
+endif()
+if(ARCH STREQUAL "arm64" AND LIBERNT_SWITCH_WINLOAD_TRACE)
+    target_compile_definitions(bootlib PRIVATE LIBERNT_SWITCH_WINLOAD_TRACE=1)
+endif()
 if(ARCH STREQUAL "amd64" OR ARCH STREQUAL "i386")
     target_link_libraries(bootlib cportlib)
 endif()
