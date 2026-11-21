@@ -7,6 +7,13 @@
 
 #include "winload.h"
 
+/* Experimental Switch Lite ARM64 entry trace; absent from regular builds. */
+#ifdef LIBERNT_SWITCH_WINLOAD_TRACE
+#define OSL_SWITCH_TRACE(Text) FwPrint(Text)
+#else
+#define OSL_SWITCH_TRACE(Text) ((VOID)0)
+#endif
+
 #define OSL_STACK_SIZE    0x40000
 #define OSL_MAX_ENTRIES   16
 #define OSL_KERNEL_MODULE "ntoskrnl.exe"
@@ -369,10 +376,12 @@ OslMain(VOID)
     DK_DEVICE OsDevice;
     SIZE_T Length;
 
+    OSL_SWITCH_TRACE(L"[SW-WL09] Selecting boot entry\r\n");
     OslTrace("OS loader: selecting the boot entry");
     Entry = OslSelectEntry();
     if (!Entry)
         return;
+    OSL_SWITCH_TRACE(L"[SW-WL10] Boot entry selected\r\n");
 
     OslTrace("OS loader: reading the boot entry");
 
@@ -548,6 +557,7 @@ ExecuteLoaderCleanly(
     PVOID PreviousStack)
 {
     UefiServiceStack = PreviousStack;
+    OSL_SWITCH_TRACE(L"[SW-WL08] Loader stack active\r\n");
     OslMain();
 }
 
@@ -556,19 +566,26 @@ BlMain(VOID)
 {
     PUCHAR Stack;
 
+    OSL_SWITCH_TRACE(L"[SW-WL00] BlMain entered\r\n");
     FwDebugAnnounce("LiberNT OS Loader", FALSE);
+    OSL_SWITCH_TRACE(L"[SW-WL01] Announce completed\r\n");
     OslTrace("OS loader: describing the platform");
+    OSL_SWITCH_TRACE(L"[SW-WL02] OslArchInitialize begin\r\n");
     OslArchInitialize();
+    OSL_SWITCH_TRACE(L"[SW-WL03] OslArchInitialize done\r\n");
 
     OslTrace("OS loader: reading the memory map");
+    OSL_SWITCH_TRACE(L"[SW-WL04] Memory manager begin\r\n");
     if (!MmInitializeMemoryManager())
     {
         FwPrint(L"The memory map could not be read.\r\n");
         return;
     }
+    OSL_SWITCH_TRACE(L"[SW-WL05] Memory manager done\r\n");
 
     BlHeapAllocator = MmHeapAllocate;
 
+    OSL_SWITCH_TRACE(L"[SW-WL06] Allocating loader stack\r\n");
     OslTrace("OS loader: allocating the loader stack");
     Stack = MmAllocateMemoryWithType(OSL_STACK_SIZE, LoaderOsloaderStack);
     if (!Stack)
@@ -579,5 +596,6 @@ BlMain(VOID)
 
     BasicStack = Stack + OSL_STACK_SIZE;
     OslTrace("OS loader: switching to the loader stack at %p", BasicStack);
+    OSL_SWITCH_TRACE(L"[SW-WL07] Switching loader stack\r\n");
     OslArchSwitchStack();
 }
