@@ -1242,6 +1242,70 @@ and run:
 
 The kernel has **not** yet been confirmed to execute on Switch Lite.
 
+## R6.1 offline preflight: next import mismatch found in BootVid
+
+After the R6.0 HAL update was verified on Hekate's USB SD, a new
+read-only transitive import audit of the **active R5.9 ntoskrnl.exe,
+R6.0 hal.dll, kdcom.dll, and installed original bootvid.dll**
+detected that the kernel requires **16 named BootVid exports**, but
+the old on-SD BootVid only supplies **14 of these**. The two missing
+exports are:
+
+```text
+VidRenderStatusText
+VidUseCompactFont
+```
+
+All other first-tier imports of the four modules resolved by name.
+This is a **predicted next loader failure** from PE import inspection,
+not yet a physical error report. The user's R6.0 real-console boot
+result is still pending.
+
+The current source tree already defines and implements both API
+functions in `drivers/base/bootvid/bootvid.spec` and
+`drivers/base/bootvid/framebuf/bootvid.c`, so an ARM64 BootVid rebuild
+was performed from the **same fork/source tree as the kernel and HAL**.
+Ninja completed the target and linked a PE32+ ARM64 Native
+`bootvid.dll`, 1,437,696 bytes, SHA-256:
+
+`2d40aab426d65b858af10ce73105eba45f4f4b60c6056b227aa1f9ba9a1372b6`
+
+Static checks on the new build: **all 16/16** R5.9 kernel imports
+from BootVid resolve; **all 16/16** BootVid imports from the
+R5.9 kernel resolve. There are no further imported DLLs in the new
+BootVid. These are name-based checks, not a boot/runtime guarantee.
+
+The candidate was staged and SHA-verified on the laptop at:
+
+`C:\Users\Public\Documents\LiberNT-Switch-R0\staging-r6.1\bootvid-R6.1.dll`
+
+A guarded installation/rollback script was committed to
+`media/doc/ports/switch-r61-bootvid-selector.ps1` and downloaded to:
+
+`C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r6.1-bootvid-selector.ps1`
+
+PowerShell parser result: **0 errors**. The script supports
+`-Mode Check`, `-Mode Install`, and `-Mode Restore`, checks
+the expected non-system Hekate USB device, FAT32/NTFS volume labels,
+Boot Manager, WinLoad, kernel, HAL and BCD, and will first preserve
+the original BootVid on **both SD FAT32 and laptop SSD** before
+installing the new image. It checks SHA-256 after writes.
+
+**Physical media state:** During this diagnostic phase the user
+disconnected the Switch SD from laptop USB Mass Storage. Windows
+reported no disk `hekate SD RAW`, no volumes D: or L:, and a WSL
+read-only DrvFs mount lost its backing device; the stale WSL
+mount was cleanly unmounted. Accordingly, **no R6.1 image was
+written to the Switch** and the selector's install/restore mode
+was NOT run. Staging and parsing were laptop-only.
+
+Next: review the user's real R6.0 boot screenshot first. If a
+BootVid import error occurs, reconnect Hekate USB Mass Storage,
+re-verify the same disk/partitions, run the guarded R6.1 selector
+with `-Mode Check`, then `-Mode Install`. Only after hash-
+verified installation and safe eject attempt the manual UEFI probe
+again. Do not touch Hekate configuration, Linux partition, or eMMC.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
