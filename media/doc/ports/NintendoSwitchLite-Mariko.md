@@ -1072,6 +1072,68 @@ area for the magenta/cyan/yellow/white bars. A color bar generated
 from `KiSystemStartup` would be independent proof that execution
 entered the newly built ntoskrnl, which `[SW-A10]` cannot establish.
 
+## R5.9 physical rerun: firmware entered EDK II UEFI Shell, not LiberNT
+
+User's next physical photo shows **UEFI Interactive Shell v2.2**
+and its initial mapping table / `startup.nsh` countdown.
+It is **not** WinLoad trace output nor a kernel panic. There are no
+visible `[SW-Axx]` or kernel color markers in this photograph.
+This rerun does not prove either kernel success or kernel failure.
+
+The experimental SD was again verified through the authorized
+Hekate USB mass-storage interface on the laptop:
+
+- USB disk `hekate SD RAW`, FAT32 `D:` (`SWITCH SD`),
+  NTFS `L:` (`LIBERNT-LAB`), both healthy in Windows.
+- `D:\EFI\BOOT\BOOTAA64.EFI` SHA-256
+  `562f0307ed8fec5339c0e9efec2cad26a027d910999c0de9cf8dff05e5c61b48`.
+- `L:\Windows\System32\winload.efi` SHA-256
+  `6dc1602d4d96255a261afa2f29e1946ba1010cd498c679d3c84f0ad6fba47375`.
+- `L:\Windows\System32\ntoskrnl.exe` R5.9 SHA-256
+  `d35605f76c2f8d235273209a5fe924e1a63375f42f1f679f2ec47de3e04200b9`.
+- Hekate profile unchanged:
+  `bootloader/ini/11-LiberNT-R0-UEFI-probe.ini`,
+  `l4t=1`, `boot_prefixes=/switchroot/libernt-r0/`;
+  `autoboot=0`. `bl33.bin` is the existing Mariko UEFI shim.
+- Before the fix, **no** `startup.nsh` file existed on FAT32.
+- The photograph is blurry: individual `fsN:` versus `blkN:`
+  mappings cannot be identified reliably.
+
+### Temporary UEFI Shell fallback diagnostic
+
+An opt-in shell script was added to the fork at
+`media/doc/ports/switch-r59-shell-rescue.nsh`, then downloaded to
+the laptop staging area and **installed only** as new FAT32 root file
+`D:\startup.nsh`. Its SHA-256 was read back as
+`43ed5475711dd5bbab1f0ab7034155f6be75ee1af60aa6e0eae727e90e44e714`.
+
+The script scans `fs0:` through `fs7:`, only attempts to run
+`fsN:\EFI\BOOT\BOOTAA64.EFI` when the **same** mapping has the
+experiment-specific `fsN:\EFI\LiberNT\Boot\BCD` marker.
+The startup script prints `[MECHANICUS] LiberNT-Switch R5.9 shell fallback`
+and `[FOUND]`, `[RETURNED]` or `[DIAG]` messages, and finally `map`.
+This is a fallback; it does not alter firmware NVRAM BootOrder or
+any previous EFI file. Standard EDK II UEFI Shell runs a FAT
+`startup.nsh` when its filesystem can be discovered.
+
+**Limitations:** if firmware maps only `blkN:` and no FAT `fsN:`,
+it cannot discover the script; that would point to a firmware
+SD/filesystem visibility issue, NOT demonstrate a kernel failure.
+A Boot Manager that returns to the script is likewise a loader path
+failure, not yet a kernel startup result.
+
+The script's physical effectiveness **is not yet tested**. With
+the user having safely ejected both Windows volumes and exited
+Hekate USB Mass Storage, the next test is to start the same
+manual LiberNT profile and photograph any `[MECHANICUS]`,
+`[FOUND]`, `[RETURNED]`, or `[SW-Axx]` messages, plus any
+kernel bars.
+
+**Rollback:** reconnect Hekate USB mass storage and delete only
+`D:\startup.nsh`; no prior file was overwritten. The script can
+also be skipped with ESC at the EDK II Shell startup prompt.
+Do not touch the internal eMMC or reformat SD.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
