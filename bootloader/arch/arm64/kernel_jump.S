@@ -93,15 +93,32 @@ Arm64JumpToKernel:
 
     /* Mask interrupts during the hand-off */
     msr daifset, #0xF
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+    SWITCH_ASM_MARK 3
+    SWITCH_ASM_MARK 4
+#endif
 
     /* Flush caches to ensure kernel sees consistent memory */
     bl Arm64CompleteCacheMaintenance
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+    SWITCH_ASM_MARK 5
+    SWITCH_ASM_MARK 6
+#endif
 
     /*
      * Now PC and SP are both in TTBR1/KSEG0 space, so clearing TTBR0 can no
      * longer kill the loader return path before the kernel receives control.
      */
     bl Arm64ClearIdentityMappings
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+    /*
+     * Diagnostic only. Calling the framebuffer helper here also tests
+     * execution of its code and stack via TTBR1 after TTBR0 was removed.
+     * If the marker is absent, do not attribute the fault to identity
+     * clearing alone: the probe itself can influence the transition.
+     */
+    SWITCH_ASM_MARK 7
+#endif
 
     /* Debug: Check TTBR1 and TCR right before jump */
     mrs x4, ttbr1_el1
@@ -144,6 +161,9 @@ Arm64JumpToKernel:
     isb
 
     /* Direct branch to kernel */
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+    SWITCH_ASM_MARK 8
+#endif
     br x19
 
     /* Should never reach here */
