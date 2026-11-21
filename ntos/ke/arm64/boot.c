@@ -76,6 +76,9 @@ static UINT64 KiArm64IdentityL2Backing[ARM64_IDENTITY_L2_ENTRIES +
                                        (PAGE_SIZE / sizeof(UINT64))];
 
 extern const UINT64 KiArm64EarlyVectorTable[];
+#ifdef LIBERNT_SWITCH_KERNEL_ENTRY_TRACE
+VOID NTAPI KiArm64EntryProbe(PLOADER_PARAMETER_BLOCK LoaderBlock, ULONG Stage);
+#endif
 VOID KiArm64EarlyScreenInitialize(_In_opt_ PLOADER_PARAMETER_BLOCK LoaderBlock);
 
 static UINT64 *KiArm64IdentityL0;
@@ -989,6 +992,9 @@ NTAPI
 KiArm64SystemStartupC(_Inout_ PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
     ARM64_BOOT_CONTEXT BootContext = {0};
+#ifdef LIBERNT_SWITCH_KERNEL_ENTRY_TRACE
+    KiArm64EntryProbe(LoaderBlock, 2);
+#endif
 
     if (LoaderBlock && LoaderBlock->u.Arm64.EarlyUartAddress != 0)
     {
@@ -1016,11 +1022,17 @@ KiArm64SystemStartupC(_Inout_ PLOADER_PARAMETER_BLOCK LoaderBlock)
      * early accesses cause translation faults.
      */
     KiArm64InstallEarlyExceptionVectors();
+#ifdef LIBERNT_SWITCH_KERNEL_ENTRY_TRACE
+    KiArm64EntryProbe(LoaderBlock, 3);
+#endif
 
     BootContext.LoaderBlock = LoaderBlock;
 
     KiArm64CaptureMmuState(&BootContext);
     KiArm64EnsureIdentityMapping(&BootContext);
+#ifdef LIBERNT_SWITCH_KERNEL_ENTRY_TRACE
+    KiArm64EntryProbe(LoaderBlock, 4);
+#endif
 
     /* Switch to a clean boot stack before entering KiInitializeSystem */
     LoaderBlock->KernelStack = (ULONG_PTR)KiArm64P0BootStack;
