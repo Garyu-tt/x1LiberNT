@@ -30,6 +30,8 @@ void _changestack(VOID);
  * kernel has been entered.
  */
 #ifdef LIBERNT_SWITCH_EFI_TRACE
+static BOOLEAN UefiTraceDebugReady = FALSE;
+
 static VOID
 UefiTraceStage(
     _In_ CONST CHAR16 *Message)
@@ -41,6 +43,24 @@ UefiTraceStage(
         GlobalSystemTable->ConOut->OutputString(
             GlobalSystemTable->ConOut,
             (CHAR16 *)Message);
+    }
+
+    /*
+     * Firmware text output may disappear after DebugInit changes display
+     * ownership. Mirror later checkpoints to the initialized FreeLoader
+     * debug channel so QEMU/UART can still identify the last completed step.
+     * Do not call DbgPrint before DebugInit.
+     */
+    if (UefiTraceDebugReady)
+    {
+        CHAR Line[128];
+        ULONG i;
+
+        for (i = 0; i < RTL_NUMBER_OF(Line) - 1 && Message[i]; i++)
+            Line[i] = (Message[i] <= 0x7F) ? (CHAR)Message[i] : '?';
+
+        Line[i] = ANSI_NULL;
+        DbgPrint("%s", Line);
     }
 }
 #define UEFI_TRACE_STAGE(text) UefiTraceStage(text)
@@ -76,6 +96,9 @@ EfiEntry(
     /* Debugger pre-initialization */
     UEFI_TRACE_STAGE(L"[SW-05] DebugInit begin\r\n");
     DebugInit(BootMgrInfo.DebugString);
+#ifdef LIBERNT_SWITCH_EFI_TRACE
+    UefiTraceDebugReady = TRUE;
+#endif
     UEFI_TRACE_STAGE(L"[SW-06] DebugInit done\r\n");
 
     UEFI_TRACE_STAGE(L"[SW-07] MachInit begin\r\n");
