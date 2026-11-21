@@ -20,6 +20,12 @@ KiSystemStartup:
     orr     x9, x9, x10
     msr     cpacr_el1, x9
     isb
+#ifdef LIBERNT_SWITCH_KERNEL_ENTRY_TRACE
+    stp     x0, x30, [sp, #-16]!
+    mov     w1, #1
+    bl      KiArm64EntryProbe
+    ldp     x0, x30, [sp], #16
+#endif
     b       KiArm64SystemStartupC
     .seh_endproc
 
