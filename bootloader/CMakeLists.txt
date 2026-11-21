@@ -333,6 +333,11 @@ if(WINLOAD_ASM_SOURCE)
     if(ARCH STREQUAL "arm64" AND LIBERNT_SWITCH_WINLOAD_TRACE)
         target_compile_definitions(winload PRIVATE LIBERNT_SWITCH_WINLOAD_TRACE=1)
     endif()
+    # arch/arm64/archmm.c and winload/memory.c belong to this executable,
+    # not bootlib. Opt-in pre- and post-ExitBootServices stage tracing.
+    if(ARCH STREQUAL "arm64" AND LIBERNT_SWITCH_HANDOFF_TRACE)
+        target_compile_definitions(winload PRIVATE LIBERNT_SWITCH_HANDOFF_TRACE=1)
+    endif()
     if(MSVC)
         set_property(TARGET winload PROPERTY C_STANDARD 11)
     endif()
