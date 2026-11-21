@@ -7,6 +7,12 @@
 
 #include "winload.h"
 
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+#define SWITCH_ML_TRACE(Message) FwPrint(Message)
+#else
+#define SWITCH_ML_TRACE(Message) ((VOID)0)
+#endif
+
 #define OSL_MAX_DESCRIPTORS 2048
 
 extern ULONG_PTR VramAddress;
@@ -142,6 +148,7 @@ WinLdrSetupMemoryLayout(
     PVOID ImageBase;
     SIZE_T ImageSize;
 
+    SWITCH_ML_TRACE(L"[SW-ML00] Descriptor allocation begin\r\n");
     OslDescriptors = MmAllocateMemoryWithType(OSL_MAX_DESCRIPTORS * sizeof(*OslDescriptors),
                                               LoaderMemoryData);
     if (LoaderBlock->FirmwareInformation.FirmwareTypeEfi)
@@ -151,17 +158,28 @@ WinLdrSetupMemoryLayout(
             RtlZeroMemory(RuntimeServices, sizeof(*RuntimeServices));
     }
 
+    SWITCH_ML_TRACE(L"[SW-ML01] Allocations returned; firmware map sync begin\r\n");
     if (!OslDescriptors || !MmSynchronizeFirmwareMap())
+    {
+        SWITCH_ML_TRACE(L"[SW-ML-ERR] Firmware map sync failed\r\n");
         return FALSE;
+    }
+    SWITCH_ML_TRACE(L"[SW-ML02] Firmware map sync completed\r\n");
 
     OslReserveFrameBuffer();
     OslArchReserveFirmwareMemory(LoaderBlock);
     OslArchPlaceRamdisk();
+    SWITCH_ML_TRACE(L"[SW-ML03] Firmware reservations completed\r\n");
 
     Table = MmGetMemoryMap(&Count);
+    SWITCH_ML_TRACE(L"[SW-ML04] Initial memory map acquired; page-zero map begin\r\n");
     if (!Table || Count == 0 || !MempSetupPaging(0, 1, FALSE))
+    {
+        SWITCH_ML_TRACE(L"[SW-ML-ERR] Initial page map failed\r\n");
         return FALSE;
+    }
 
+    SWITCH_ML_TRACE(L"[SW-ML05] Memory region mappings begin\r\n");
     for (Start = 0, i = 1; i <= Count; i++)
     {
         if (i < Count && Table[i].PageAllocated == Table[Start].PageAllocated)
@@ -173,9 +191,11 @@ WinLdrSetupMemoryLayout(
         Start = i;
     }
 
+    SWITCH_ML_TRACE(L"[SW-ML06] Memory region mappings completed\r\n");
     if (RuntimeServices)
         FwPrepareRuntimeServices(&LoaderBlock->FirmwareInformation.u.EfiInformation, RuntimeServices);
 
+    SWITCH_ML_TRACE(L"[SW-ML07] Runtime services prepared; descriptor loop begin\r\n");
     Table = MmGetMemoryMap(&Count);
     for (Start = 0, i = 1; i <= Count; i++)
     {
@@ -194,6 +214,7 @@ WinLdrSetupMemoryLayout(
         Start = i;
     }
 
+    SWITCH_ML_TRACE(L"[SW-ML08] Loader descriptors populated\r\n");
     if (FwGetLoaderImage(&ImageBase, &ImageSize) &&
         !MempSetupPaging((PFN_NUMBER)((ULONG_PTR)ImageBase >> MM_PAGE_SHIFT),
                          MM_SIZE_TO_PAGES(ImageSize),
@@ -202,6 +223,7 @@ WinLdrSetupMemoryLayout(
         return FALSE;
     }
 
+    SWITCH_ML_TRACE(L"[SW-ML09] Loader image mapping returned\r\n");
     if (!MempSetupPaging((PFN_NUMBER)((ULONG_PTR)OslSystemBlock >> MM_PAGE_SHIFT),
                          MM_SIZE_TO_PAGES(sizeof(*OslSystemBlock)),
                          TRUE))
@@ -209,7 +231,10 @@ WinLdrSetupMemoryLayout(
         return FALSE;
     }
 
+    SWITCH_ML_TRACE(L"[SW-ML10] System block mapping returned; list conversion begin\r\n");
     OslConvertList(&LoaderBlock->MemoryDescriptorListHead);
+    SWITCH_ML_TRACE(L"[SW-ML11] Descriptor conversion completed\r\n");
     MempDump();
+    SWITCH_ML_TRACE(L"[SW-ML12] Memory layout ready\r\n");
     return TRUE;
 }
