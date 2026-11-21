@@ -1400,6 +1400,87 @@ No Hekate configuration, Linux partition or internal Nintendo eMMC
 was modified as part of the R6.1 BootVid installation. No kernel
 execution on real Switch Lite is claimed yet.
 
+## R6.2: repeated BootVid failure traced to preloaded lfbbvid.dll
+
+The real Switch Lite photo after installing R6.1 BootVid still
+reported `ntoskrnl.exe needs VidRenderStatusText from bootvid.dll,
+which does not export it`. This is a WinLoad module import
+failure; it does NOT prove any execution inside the NT kernel.
+
+Read-only source inspection found a decisive alias in
+`bootloader/winload/main.c`:
+
+```c
+#define OSL_VIDEO_MODULE "bootvid.dll"
+#define OSL_FRAMEBUFFER_VIDEO_FILE "lfbbvid.dll"
+```
+
+When `FrameBufferData` exists, WinLoad invokes
+`PeLoadModule(..., "lfbbvid.dll", "bootvid.dll", ...)`
+before `PeResolveImports(..., Kernel)`. Consequently it has already
+registered the **lfbbvid.dll file** as the `bootvid.dll` module.
+Updating only `L:\Windows\System32\bootvid.dll` in R6.1
+could not fix this particular framebuffer boot path.
+
+The mounted Switch NTFS contained exactly one copy:
+`L:\Windows\System32\lfbbvid.dll`, original SHA-256
+`5c55d64f0ec931fa1cfad8efdb12dd6d463ed6c1243e8202b516da3ead0c6a12`.
+Original size: 1,011,712 bytes. Its PE exports do not contain
+`VidRenderStatusText`.
+
+Built `drivers/base/bootvid/lfbbvid.dll` for ARM64 using Ninja.
+It is PE32+ Native ARM64, SHA-256:
+`11eb091cc0af95320deeac504f29051d7bdc4ff8ac6b7da4b856a1933aea3530`.
+The new image exports `VidRenderStatusText` and
+`VidUseCompactFont`, preserving 14 of the 15 old export names;
+like R6.1 BootVid, it does NOT expose old `VidFadeToBlack`.
+Static named-import closure checks passed for R5.9 kernel
+-> new LFBBVID and new LFBBVID -> R5.9 kernel. This is not
+proof that the loader correctly maps or runs the DLL.
+
+The correct R6.2 file was copied with SHA-256 verification into
+`C:\Users\Public\Documents\LiberNT-Switch-R0\staging-r6.2\lfbbvid-R6.2.dll`.
+A checksum-guarded installer/rollback was committed at
+`media/doc/ports/switch-r62-lfbbvid-selector.ps1` and installed
+on laptop at
+`C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r6.2-lfbbvid-selector.ps1`.
+PowerShell parse verification showed zero errors and `-Mode Check`
+passed the device labels, BCD and boot component hashes.
+
+The physical Hekate SD was identified as the same non-system USB
+disk `hekate SD RAW`, `D:` FAT32 `SWITCH SD`, `L:`
+NTFS `LIBERNT-LAB`. `-Mode Install` then successfully
+replaced **only** the active
+`L:\Windows\System32\lfbbvid.dll`, and readback confirmed
+SHA-256 `11eb091c...`.
+
+Original R6.1 LFBBVID was backed up on both laptop SSD and SD FAT32:
+
+- `C:\Users\Public\Documents\LiberNT-Switch-R0\backups\lfbbvid-R6.1-original.dll`
+- `D:\EFI\LiberNT\Experiments\lfbbvid-R6.1-original.dll`
+
+R6.2 candidate is also staged on FAT32:
+`D:\EFI\LiberNT\Experiments\lfbbvid-R6.2-matched-kernel.dll`.
+Independent readback checked all three SHA-256s. WinLoad,
+Boot Manager, ntoskrnl R5.9, HAL R6.0, BootVid R6.1 and BCD
+remain unchanged. Nintendo eMMC / Linux partition untouched.
+
+**R6.2 physical boot result is pending.** Safely eject D: and L:,
+exit Hekate Mass Storage, and launch the original manual
+`More Configs -> LiberNT R0 - Mariko UEFI PROBE` profile.
+Observe the new error or magenta/cyan/yellow/white kernel
+entry bars. There may be further load-time blockers.
+
+Rollback after SD reattachment:
+
+```powershell
+& 'C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r6.2-lfbbvid-selector.ps1' -Mode Restore
+```
+
+Do not switch to the old `ntkrnlmp.exe` while R6.2 is active:
+the old kernel expects `VidFadeToBlack`, which the new
+LFBBVID no longer provides.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
