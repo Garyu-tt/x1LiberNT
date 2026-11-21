@@ -1004,6 +1004,38 @@ BlMain(VOID)
     BmSelected = Default;
     Timeout = BmGetTimeout();
     BmDebugEntries(Default, DefaultTool, Timeout);
+
+#if defined(LIBERNT_SWITCH_EFI_TRACE) && defined(LIBERNT_SWITCH_DIAG_DIRECT_BOOT)
+    /*
+     * Switch Lite experiment: distinguish a broken/timer-stalled graphical
+     * boot menu from BCD device and winload issues. This one-shot path
+     * avoids both the GUI event loop and the update-state write path.
+     *
+     * Only enabled in a separately built, hash-verified diagnostic EFI.
+     * Do not enable in standard builds.
+     */
+    {
+        BOOLEAN Cancelled = FALSE;
+        BOOLEAN Started;
+
+        BM_SWITCH_TRACE(L"[SW-DB00] Diagnostic bypassing boot menu\r\n");
+        RtlZeroMemory(&Startup, sizeof(Startup));
+        BM_SWITCH_TRACE(L"[SW-DB01] BmStartApplication begin\r\n");
+        Started = BmStartApplication(&BmEntries[Default],
+                                     BmStorePath,
+                                     &Startup,
+                                     &Cancelled);
+        BM_SWITCH_TRACE(L"[SW-DB02] BmStartApplication returned\r\n");
+        if (Started)
+            BM_SWITCH_TRACE(L"[SW-DB03] Loader reported success\r\n");
+        else if (Cancelled)
+            BM_SWITCH_TRACE(L"[SW-DB04] Loader was cancelled\r\n");
+        else
+            BM_SWITCH_TRACE(L"[SW-DB05] Loader failed\r\n");
+        return;
+    }
+#endif
+
     if (DefaultTool < BmToolCount)
     {
         RtlZeroMemory(&Startup, sizeof(Startup));
