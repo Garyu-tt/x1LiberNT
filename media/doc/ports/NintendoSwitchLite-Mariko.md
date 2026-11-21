@@ -241,6 +241,77 @@ the manual `LiberNT R0 - Mariko UEFI PROBE` configuration, and photograph
 the last `[SW-DBxx]` checkpoint or any new failure message.
 A successful `winload` or kernel boot is not assumed.
 
+## R5.2: physical R5.1 handoff reached; EDK2-to-WinLoad tracing
+
+The physical Switch Lite **R5.1 screenshot** reaches the following checkpoints
+in the *new* Boot Manager direct-boot diagnostic:
+
+```text
+[SW-DB13] Image read operation returned
+[SW-DB14] PE headers and checksum validated
+[SW-DB15] FwStartImage begin
+```
+
+This demonstrates the real physical BCD system device was resolved, the image
+at `\Windows\system32\winload.efi` was read and the PE headers
+and checksum passed validation. **It does not prove `BootServices->StartImage`
+was reached or that WinLoad executed.** `[SW-DB16]` was not visible.
+
+The BCD store was independently checked on the Windows host:
+
+- OS entry: `device partition=L:`, `osdevice partition=L:`
+- Application: `\Windows\system32\winload.efi`
+- System root: `\Windows`
+- BCD checksum during R5.2 staging:
+  `f512a1d7a291c8ccb58a225feb3284171abd8eab48af1de4c7d125baf0864e63`
+
+The following opt-in tracing was added to `switch-lite-mariko-r0`:
+1. `bootloader/uefi/platform.c`: `[SW-FW00]`–`[SW-FW08]` around
+   `LoadImage`, `HandleProtocol`, log closure and `StartImage`.
+2. `bootloader/uefi/uefi.c`: `[SW-UEFI-E00]`–`[SW-UEFI-E01]` in
+   the **shared** EFI entry function (applies to both EFI binaries).
+3. `bootloader/winload/main.c`: `[SW-WL00]`–`[SW-WL10]` tracing
+   WinLoad setup, memory, stack switch and boot entry selection.
+4. Separate ARM64 Debug CMake flags:
+   `LIBERNT_SWITCH_HANDOFF_TRACE=ON` and
+   `LIBERNT_SWITCH_WINLOAD_TRACE=ON`.
+   Note: UEFI platform and entry sources live in shared `bootlib`, so their
+   flags must be defined on **bootlib** rather than just the final executable.
+
+WSL LLVM 24 built both ARM64 EFI executables successfully:
+
+| R5.2 EFI artifact | SHA-256 |
+| --- | --- |
+| `bootmgfw.efi` | `562f0307ed8fec5339c0e9efec2cad26a027d910999c0de9cf8dff05e5c61b48` |
+| `winload.efi` | `753489ab9567c35e6dafee6e0ff7b193a9227e3c73a72d7009b07d79529dafe9` |
+
+The exact binaries were verified to contain the UTF-16 checkpoints.
+In **isolated QEMU** the R5.2 Boot Manager read the BCD and reached
+`[SW-DB12]`; it then failed to resolve the system device because
+the virtual FAT-only test lacks the physical second NTFS partition.
+A separate QEMU boot of R5.2 WinLoad confirmed `[SW-UEFI-E00]`,
+`[SW-WL00]`–`[SW-WL09]` before returning when no suitable OS
+entry could be selected. **Neither emulation test proves the actual console
+has started WinLoad.**
+
+The physical microSD was updated with **R5.2 Boot Manager** at
+`D:\EFI\BOOT\BOOTAA64.EFI` and **R5.2 WinLoad** at
+`L:\Windows\System32\winload.efi`. Before changes, verified
+original SHA-256 backups of *both* files were saved to the laptop SSD and
+`D:\EFI\LiberNT\Experiments\`. A checksum-guarded rollback
+script was parsed successfully and stored at:
+`C:\Users\Public\Documents\LiberNT-Switch-R0\restore-r5.1-from-r5.2.ps1`.
+
+The BCD store, Hekate configuration, existing Linux partition and internal
+Nintendo eMMC were **not** changed. Hekate remains `autoboot=0`.
+
+**R5.2 physical-console result is still pending.** After safely ejecting
+Hekate USB Mass Storage, start the manual `LiberNT R0 - Mariko UEFI PROBE`
+profile and record the last `[SW-FWxx]`, `[SW-UEFI-Exx]` and
+`[SW-WLxx]` checkpoints. If `[SW-FW07]` appears but no WinLoad
+entry checkpoint is displayed, further inspect `StartImage`/
+firmware entry rather than assuming a kernel failure.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
