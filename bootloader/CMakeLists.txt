@@ -180,6 +180,11 @@ add_executable(bootmgfw
 if(ARCH STREQUAL "arm64" AND LIBERNT_SWITCH_EFI_TRACE)
     target_compile_definitions(bootmgfw PRIVATE LIBERNT_SWITCH_EFI_TRACE=1)
 endif()
+# One-shot diagnostic: bypass GUI and read/launch the BCD default entry.
+# Disabled by default; only for isolated Switch Lite tests.
+if(ARCH STREQUAL "arm64" AND LIBERNT_SWITCH_DIAG_DIRECT_BOOT)
+    target_compile_definitions(bootmgfw PRIVATE LIBERNT_SWITCH_DIAG_DIRECT_BOOT=1)
+endif()
 if(ARCH STREQUAL "ppc")
     set_target_properties(bootmgfw PROPERTIES OUTPUT_NAME bootmgr)
     bootloader_ofw_application(bootmgfw 0x00100000)
