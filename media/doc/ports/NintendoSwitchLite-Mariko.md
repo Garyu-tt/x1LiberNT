@@ -924,6 +924,35 @@ C:\Users\Public\Documents\LiberNT-Switch-R0\restore-winload-r5.7-from-r5.9a.ps1
 USB Mass Storage and boot the existing manual LiberNT R0 - Mariko UEFI
 PROBE profile. Photograph [SW-A09] or [SW-A10], if either appears.
 No kernel execution claim is justified by these loader-only stages.
+## R5.9A physical confirmation — entrypoint Stage-1 read translation succeeds
+
+On the real Nintendo Switch Lite, the user reports **[SW-A10]**
+after booting the deployed R5.9A ARM64 WinLoad variant. This is
+the branch of the trace after `AT S1E1R, x19` and a clear
+`PAR_EL1.F` fault bit.
+
+**Confirmed:** the actual candidate kernel entry virtual address in
+`x19` was successfully translated for an EL1 *read* by the active
+Stage-1 translation regime at the final WinLoad handoff. The loader
+was still running following its TTBR0 cleanup and at the point just
+before `br x19`.
+
+**Not confirmed:** executable permission (PXN / UXN), the branch's
+successful completion, execution of `KiSystemStartup`, or stable
+kernel startup. `[SW-A10]` is emitted by WinLoad, not by ntoskrnl.
+A successful read translation is not a substitute for executing the
+kernel.
+
+The next reliable independent proof is an opt-in kernel-entry
+checkpoint inside `ntos/ke/arm64/bootstack.S` or a carefully guarded
+early exception-vector diagnostic. The source for the R5.9
+`KiArm64EntryProbe` already exists in the fork, and individual ARM64
+objects compiled; **the complete kernel binary has not been linked
+and has not been deployed**. Preserve the working R5.9A WinLoad and
+the current kernel on the Switch until a testable full kernel artifact
+is produced and verified. No further device-side modification was
+performed for this report.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
