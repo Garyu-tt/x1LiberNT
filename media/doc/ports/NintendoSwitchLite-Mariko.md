@@ -570,6 +570,86 @@ possible confounders, **not** a confirmed crash cause.
 two Hekate USB Mass Storage volumes, boot the same manual profile and
 photograph [SW-WL35] / [SW-WL36] or the last earlier checkpoint.
 Even [SW-WL36] proves only an attempted kernel jump, not kernel entry.
+## R5.6: physical R5.5 reached the kernel-jump call site
+
+A **physical Switch Lite photograph** of the R5.5 WinLoad run displays,
+after prior [SW-HO11] through [SW-HO15] post-ExitBootServices checkpoints:
+
+```text
+[SW-WL35] Kernel address space prepared (post-EBS)
+[SW-WL36] Entering OslArchStartKernel
+```
+
+This proves that WinLoad continued executing past
+`OslArchPrepareHandoff()` and reached the imminent call to
+`OslArchStartKernel()` on the actual Switch Lite. **It does not prove
+entry into the ARM64 kernel** or into the assembly function
+`Arm64JumpToKernel`. The screen stops showing new diagnostics at
+the handoff call site.
+
+### Isolating the handoff (R5.6)
+
+The new opt-in ARM64 trace probes split the call site into:
+
+| Marker | Location / interpretation |
+| --- | --- |
+| `SW-J00` | `OslArchStartKernel` function entered |
+| `SW-J01` | LoaderBlock VA-to-PA conversion returned |
+| `SW-J02` | Kernel stack pointer read |
+| `SW-J03` | About to call `Arm64JumpToKernel` |
+| `SW-A00` | Assembly jump routine entered with original arguments preserved |
+| `SW-A01` | Reached the KSEG0 alias location |
+| `SW-A02` | Kernel stack was selected; identity mapping still active |
+
+The assembly checkpoints call a framebuffer-only callback while
+TTBR0 identity mapping is still available; they preserve x19-x21,
+LR, x0-x2 where applicable, and 16-byte stack alignment.
+**Instrumentation itself can influence the failure**, particularly
+when invoking C code after switching to the KSEG0 alias or kernel
+stack. No C callback is inserted *after* TTBR0 is cleared.
+The regular non-trace WinLoad build is not changed.
+
+Source commits in `switch-lite-mariko-r0`:
+- `9dc65073`: C-side markers and assembly entry handler
+- `c5762d4d`: ARM64 assembly checkpoint sites
+- `48484f49`: corrected GAS macro-argument escaping after catching
+  a build error
+
+The LLVM 24 Debug ARM64 WinLoad build passed after the macro fix.
+PE32+ EFI ARM64 size **1,332,736 bytes**, SHA-256
+`db0568146d58eb5b7900f527bacc55fa867b10d4f33faf0ea7d1048ee14f3718`.
+The exact binary was verified to contain ASCII strings for the new
+stage markers. Its standalone QEMU EFI test again reached
+`[SW-WL09]`; it cannot test the kernel jump without the real OS
+device and compatible boot configuration.
+
+The artifact was staged **on the laptop only** at:
+
+`C:\Users\Public\Documents\LiberNT-Switch-R0\staging-r5.6\winload-R5.6.efi`
+
+The Hekate USB Mass Storage disk was **not connected** when R5.6 was
+compiled and staged. No copy to the Switch SD has been attempted,
+and the last verified installed WinLoad on the microSD is still R5.5,
+SHA-256 `ef5f9dadc7d6b174e075739dbead9e5c6e7cdeba1e99f197efa28f37909ce8c8`.
+
+Prepared (not executed) checksum-guarded PowerShell installer/rollback:
+
+`C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r5.6-installer.ps1`
+
+The script passed static PowerShell syntax parsing, takes
+`-Action Install` or `-Action Restore`, guards the Hekate USB
+disk and both volume labels, verifies both firmware and file SHA-256,
+preserves R5.5 backups to SD FAT32 and the notebook SSD, and writes
+only the WinLoad file on experimental NTFS. Always finish by safely
+ejecting Windows-mounted volumes before leaving USB Mass Storage.
+
+**Next physical test:** Switch must be back in Hekate USB Mass Storage
+before installation; verify R5.5 hash first. Then boot R5.6 with the
+same BCD, Boot Manager and kernel untouched, photograph the
+`SW-Jxx` / `SW-Axx` markers. If `SW-A02` appears, focus on
+cache maintenance, TTBR0 clearing and the final branch. Do not label
+the kernel "running" until a kernel-side entry marker is observed.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
