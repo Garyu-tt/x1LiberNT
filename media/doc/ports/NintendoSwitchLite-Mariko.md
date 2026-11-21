@@ -650,6 +650,45 @@ same BCD, Boot Manager and kernel untouched, photograph the
 cache maintenance, TTBR0 clearing and the final branch. Do not label
 the kernel "running" until a kernel-side entry marker is observed.
 
+### R5.6 installation update
+
+After the initial offline staging, the user reconnected Hekate USB Mass
+Storage. A fresh read-only guard positively identified `hekate SD RAW`
+as a non-system USB disk with `D:` FAT32 `SWITCH SD` and
+`L:` NTFS `LIBERNT-LAB`. At installation time:
+
+- Active R5.5 WinLoad SHA-256:
+  `ef5f9dadc7d6b174e075739dbead9e5c6e7cdeba1e99f197efa28f37909ce8c8`
+- R5.6 staging image SHA-256:
+  `db0568146d58eb5b7900f527bacc55fa867b10d4f33faf0ea7d1048ee14f3718`
+- Boot Manager unchanged SHA-256:
+  `562f0307ed8fec5339c0e9efec2cad26a027d910999c0de9cf8dff05e5c61b48`
+- BCD was readable and still had `KDWATCHDOG=0 DEBUGPORT=FILE`,
+  `osdevice partition=L:`, `systemroot \Windows`.
+
+The first invocation of the prepared installer failed **before copying**
+because the PowerShell function named `H` resolved to the built-in
+`Get-History` alias. Replaced it with `Get-LabHash`, verified the script
+still parsed successfully and checked that the active R5.5 SHA-256 had
+not changed. The corrected installer then succeeded:
+
+- Active `L:\Windows\System32\winload.efi` now **R5.6** with expected hash.
+- R5.5 backups checked on FAT32 and on the laptop's SSD:
+  `D:\EFI\LiberNT\Experiments\winload-R5.5-before-R5.6.efi`,
+  `C:\Users\Public\Documents\LiberNT-Switch-R0\backups\winload-R5.5-before-R5.6.efi`.
+- The installation/rollback script is
+  `C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r5.6-installer.ps1`,
+  invoked with `-Action Install` or `-Action Restore`.
+- No kernel, BCD, Hekate boot configuration or internal eMMC changes.
+
+**R5.6 is installed, but has not been booted on the physical Switch.**
+Safely eject both Windows volumes, return to Hekate and use the
+existing manual `LiberNT R0 - Mariko UEFI PROBE` configuration.
+The next photo should show whether `[SW-J00]` through `[SW-A02]`
+appear. Missing markers do not by themselves prove a specific fault,
+because the new debug callback can affect execution after KSEG0 or
+stack switching.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
