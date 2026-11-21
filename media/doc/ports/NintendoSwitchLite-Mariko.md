@@ -689,6 +689,90 @@ appear. Missing markers do not by themselves prove a specific fault,
 because the new debug callback can affect execution after KSEG0 or
 stack switching.
 
+## R5.7: physical R5.6 reached KSEG0 and kernel stack, cache/TTBR0 probes
+
+A new photograph from the **physical Nintendo Switch Lite** shows:
+
+```text
+[SW-HO11] ExitBootServices returned
+[SW-HO12] Firmware watchdog stopped
+[SW-HO13] Exception vectors set
+[SW-HO14] Processor context set
+[SW-HO15] User shared page cleared
+[SW-WL35] Kernel address space prepared (post-EBS)
+[SW-WL36] Entering OslArchStartKernel
+[SW-J00] OslArchStartKernel entered
+[SW-J01] Loader block VA-to-PA returned
+[SW-J02] Kernel stack pointer fetched
+[SW-J03] Arm64JumpToKernel call next
+[SW-A00] Jump assembly entry
+[SW-A01] KSEG0 alias reached
+[SW-A02] Kernel stack selected
+```
+
+This is **direct evidence of ARM64 loader assembly execution after the
+KSEG0 alias branch and kernel-stack selection**. No subsequent assembly
+marker existed in R5.6; this photograph therefore does NOT by itself
+prove a cache-management fault, TTBR0 failure, a successful final
+`br x19`, or entry into the LiberNT kernel.
+
+### R5.7 controlled test
+
+Under `LIBERNT_SWITCH_HANDOFF_TRACE`, new framebuffer-only ARM64
+assembly checkpoints (no UEFI calls) were committed:
+
+| Marker | Probe location |
+| --- | --- |
+| `SW-A03` | DAIF interrupt mask set |
+| `SW-A04` | Before `Arm64CompleteCacheMaintenance` |
+| `SW-A05` | Returned from cache maintenance |
+| `SW-A06` | Before `Arm64ClearIdentityMappings` |
+| `SW-A07` | After TTBR0 identity-map clearing returns |
+| `SW-A08` | Immediately before the final `br x19` |
+
+Checkpoint helpers preserve x19-x21, LR and 16-byte stack alignment.
+The `SW-A07` and `SW-A08` screen callbacks themselves require
+function code, framebuffer mapping and the stack to remain accessible
+under TTBR1, **so they may influence the outcome of the diagnostic**.
+An absent post-TTBR0 marker cannot alone prove that clearing TTBR0 failed.
+No C call is added *after* the final `br x19`, and no kernel-side
+startup checkpoint is claimed.
+
+- Source commits: `f9e05aa0` (stage handler) and `492f79de`
+  (ARM64 assembly checkpoint sites).
+- ARM64 Debug WinLoad built successfully from the fork via LLVM 24.
+- PE32+ EFI ARM64, **1,333,248 bytes**.
+- SHA-256: `b91a87c0f5ab1a60d77959f1169b0ccc3079a403a76c1e6915611b4c69d2828f`.
+- Strings inspection confirms `[SW-A03]`–`[SW-A08]` markers.
+- Standalone QEMU (EDK2, no experimental NTFS system partition) reaches
+  `[SW-WL09]`, so deep kernel handoff is only testable on real Switch.
+- Staged source on notebook:
+  `C:\Users\Public\Documents\LiberNT-Switch-R0\staging-r5.7\winload-R5.7.efi`.
+- With Hekate's SD connected over USB Mass Storage, verified non-system
+  USB disk, FAT32 `D:` labeled `SWITCH SD`, NTFS `L:` labeled
+  `LIBERNT-LAB`, and expected Boot Manager and R5.6 WinLoad hashes.
+- Prior R5.6 WinLoad backed up with SHA-256 verification to both SSD
+  and FAT32:
+  `C:\Users\Public\Documents\LiberNT-Switch-R0\backups\winload-R5.6-confirmed-physical.EFI`,
+  `D:\EFI\LiberNT\Experiments\winload-R5.6-confirmed-physical.EFI`.
+- Installed **only** `L:\Windows\System32\winload.efi` and verified it
+  matches R5.7 SHA-256. Boot Manager R5.2 remains
+  `562f0307ed8fec5339c0e9efec2cad26a027d910999c0de9cf8dff05e5c61b48`.
+- BCD continues to report `KDWATCHDOG=0 DEBUGPORT=FILE` and
+  Hekate has `autoboot=0`. Neither BCD nor kernel, Linux partition or
+  internal eMMC was intentionally modified.
+- Prepared syntax-checked rollback/reinstall script:
+  `C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r5.7-restore-installer.ps1`
+  with `-Action Restore` / `-Action Install`, verifying target disk,
+  both images and backups before replacement. Not executed.
+
+**The R5.7 physical result is pending.** Safely eject both volumes
+from Windows, exit Hekate USB Mass Storage and boot the same
+`More Configs → LiberNT R0 - Mariko UEFI PROBE` profile. Photograph
+the last `SW-Axx` marker. `[SW-A08]` would prove the loader reached
+the last instruction before the kernel branch; a kernel-side marker
+is still required to prove `KiSystemStartup` executed.
+
 ## Next milestone
 
 **R0 milestone:** capture real-device checkpoints from the current ARM64 `bootmgfw` and verify the BCD device mapping.  
