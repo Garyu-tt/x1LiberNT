@@ -766,12 +766,106 @@ startup checkpoint is claimed.
   with `-Action Restore` / `-Action Install`, verifying target disk,
   both images and backups before replacement. Not executed.
 
-**The R5.7 physical result is pending.** Safely eject both volumes
+**The R5.7 physical result is now confirmed in the R5.8 section below.** Safely eject both volumes
 from Windows, exit Hekate USB Mass Storage and boot the same
 `More Configs → LiberNT R0 - Mariko UEFI PROBE` profile. Photograph
 the last `SW-Axx` marker. `[SW-A08]` would prove the loader reached
 the last instruction before the kernel branch; a kernel-side marker
 is still required to prove `KiSystemStartup` executed.
+
+## R5.8: real Switch R5.7 completed cache, TTBR0 teardown, reached final kernel branch
+
+The physical Switch Lite photo from R5.7 shows these *new* checkpoints:
+
+```text
+[SW-A03] Interrupts masked
+[SW-A04] Cache maintenance begin
+[SW-A05] Cache maintenance returned
+[SW-A06] TTBR0 identity clear begin
+[SW-A07] TTBR0 clear returned
+[SW-A08] Final kernel branch next
+```
+
+The last observed marker is **`SW-A08`**, immediately *before* the
+`br x19` in `bootloader/arch/arm64/kernel_jump.S`.
+The real device made it through cache maintenance, the return from
+`Arm64ClearIdentityMappings`, post-TTBR0 framebuffer diagnostic
+calls, and the last synchronization barriers. It does **not** show
+that `br x19` succeeded or that even one `ntoskrnl.exe` instruction ran.
+The code after TTBR0 cleaning is partly instrumented, and the
+instrumentation itself can affect the test.
+
+### R5.8 one-variable early kernel-screen experiment
+
+Current *source* under `ntos/ke/arm64/earlyscreen.c` provides
+an early framebuffer console conditional on
+`LoaderBlock->LoadOptions` containing `DEBUGPORT=SCREEN`.
+It is initialized within `KiArm64EnsureIdentityMapping` after entering
+the C startup function. The *installed kernel image* differs from
+the current source: raw ASCII inspection of the existing
+4,608,000-byte kernel did **not** find the current source's expected
+`LiberNT kernel started` banner. It **did** contain
+`DEBUGPORT=SCREEN`. This makes the screen test inconclusive
+if nothing new appears.
+
+To test the pre-existing on-screen debugging without changing the
+loader or kernel, the **only changed live file** is the experimental
+FAT32 BCD store at:
+
+`D:\EFI\LiberNT\Boot\BCD`
+
+Its {default} OS entry now contains:
+
+```text
+device       partition=L:
+path         \Windows\system32\winload.efi
+osdevice     partition=L:
+systemroot   \Windows
+loadoptions  KDWATCHDOG=0 DEBUGPORT=SCREEN
+```
+
+The original `DEBUGPORT=FILE` BCD was copied and hash-verified
+on both the notebook SSD and Switch FAT32 **before** this one-variable
+test. Files:
+
+- `C:\Users\Public\Documents\LiberNT-Switch-R0\backups\BCD-R5.7-before-SCREEN`
+- `D:\EFI\LiberNT\Experiments\BCD-R5.7-before-SCREEN`
+- Edited staging copy:
+  `C:\Users\Public\Documents\LiberNT-Switch-R0\staging-r5.7\BCD-screen-experimental`
+
+The BCD default entry was verified after installation with bcdedit.
+Note that BCD hive file bytes/hashes have been observed to change
+between reads; compare **entry semantics** and preserve backups,
+rather than assuming its file SHA-256 remains static.
+
+Unchanged and verified:
+
+- Boot Manager R5.2 SHA-256:
+  `562f0307ed8fec5339c0e9efec2cad26a027d910999c0de9cf8dff05e5c61b48`
+- WinLoad R5.7 SHA-256:
+  `b91a87c0f5ab1a60d77959f1169b0ccc3079a403a76c1e6915611b4c69d2828f`
+- Installed ntoskrnl.exe SHA-256:
+  `394d34cffce85e26cc6700a1f9751cb08c8ba8ea5adf5835f4e3aaa9ab064479`
+
+The internal Nintendo eMMC, Linux partition, kernel, firmware,
+and boot manager were not modified in this experiment.
+
+A rollback/reapply script was created and passed static PowerShell
+syntax parsing:
+
+`C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r5.8-bcd-screen-selector.ps1`
+
+Run with `-Mode Restore` to restore `DEBUGPORT=FILE`, or
+`-Mode Screen` to reapply the on-screen test, with storage
+and boot file identity checks. The script was not executed after creation.
+
+**R5.8 real-device result is pending.** Safely eject both mounted Hekate
+USB Mass Storage volumes, boot the existing manual LiberNT UEFI probe
+profile and photograph any new kernel-side text. If the photo only shows
+`SW-A08`, this is not decisive; the installed kernel may lack
+the source's early framebuffer banner. A separate opt-in kernel-entry
+probe and baseline-checked kernel build would be the next investigation,
+but **no new kernel binary has been built or deployed yet**.
 
 ## Next milestone
 
