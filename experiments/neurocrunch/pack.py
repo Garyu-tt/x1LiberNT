@@ -32,9 +32,7 @@ def encode_rle(data):
             i += run
             while i < n and i - start < 128:
                 j = i + 1
-                while j < n and i - start < 128:
-                    if j - i >= 3 or data[j] != data[i]:
-                        break
+                while j < n and j - i < 3 and data[j] == data[i]:
                     j += 1
                 if j - i >= 3:
                     break
