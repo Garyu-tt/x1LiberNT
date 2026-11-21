@@ -679,7 +679,7 @@ not changed. The corrected installer then succeeded:
 - The installation/rollback script is
   `C:\Users\Public\Documents\LiberNT-Switch-R0\switch-r5.6-installer.ps1`,
   invoked with `-Action Install` or `-Action Restore`.
-- No kernel, BCD, Hekate boot configuration or internal eMMC changes.
+- No kernel, Hekate boot configuration or internal eMMC writes were made. No explicit BCD modification was requested. However, BCD **file SHA-256 changed across repeated `bcdedit /enum` reads** while `loadoptions KDWATCHDOG=0 DEBUGPORT=FILE`, `device/osdevice partition=L:` and `systemroot \\Windows` stayed the same; the cause of the binary metadata changes is not yet established.
 
 **R5.6 is installed, but has not been booted on the physical Switch.**
 Safely eject both Windows volumes, return to Hekate and use the
