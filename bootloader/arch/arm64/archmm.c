@@ -325,15 +325,65 @@ OslArchStartKernel(
     _In_ PVOID EntryPoint,
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
-    PLOADER_PARAMETER_BLOCK Physical = VaToPa(LoaderBlock);
+    PLOADER_PARAMETER_BLOCK Physical;
 
+    SWITCH_HO_POST("[SW-J00] OslArchStartKernel entered\n");
+    Physical = VaToPa(LoaderBlock);
+    SWITCH_HO_POST("[SW-J01] Loader block VA-to-PA returned\n");
+
+    /*
+     * No firmware calls after EBS. Validate the stack pointer access
+     * separately from the following assembly jump; only the experiment
+     * emits these checkpoints.
+     */
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+    {
+        ULONGLONG KernelStack = (ULONGLONG)(ULONG_PTR)Physical->KernelStack;
+
+        SWITCH_HO_POST("[SW-J02] Kernel stack pointer fetched\n");
+        SWITCH_HO_POST("[SW-J03] Arm64JumpToKernel call next\n");
+        Arm64JumpToKernel((ULONGLONG)(ULONG_PTR)EntryPoint,
+                          (ULONGLONG)(ULONG_PTR)LoaderBlock,
+                          KernelStack);
+    }
+#else
     Arm64JumpToKernel((ULONGLONG)(ULONG_PTR)EntryPoint,
                       (ULONGLONG)(ULONG_PTR)LoaderBlock,
                       (ULONGLONG)Physical->KernelStack);
+#endif
 
     for (;;)
         ;
 }
+
+/*
+ * Called only from the instrumented ARM64 jump wrapper while it still
+ * has a valid, 16-byte aligned stack. It must not use firmware services.
+ */
+#ifdef LIBERNT_SWITCH_HANDOFF_TRACE
+VOID
+Arm64KernelJumpTrace(
+    _In_ ULONG Stage)
+{
+    if (!Arm64TrapScreenRoutine)
+        return;
+
+    switch (Stage)
+    {
+        case 0:
+            Arm64TrapScreenRoutine("[SW-A00] Jump assembly entry\n");
+            break;
+        case 1:
+            Arm64TrapScreenRoutine("[SW-A01] KSEG0 alias reached\n");
+            break;
+        case 2:
+            Arm64TrapScreenRoutine("[SW-A02] Kernel stack selected\n");
+            break;
+        default:
+            break;
+    }
+}
+#endif
 
 BOOLEAN
 OslArchPrepareResume(
