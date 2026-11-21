@@ -397,6 +397,12 @@ Arm64KernelJumpTrace(
         case 8:
             Arm64TrapScreenRoutine("[SW-A08] Final kernel branch next\n");
             break;
+        case 9:
+            Arm64TrapScreenRoutine("[SW-A09] Kernel entry VA translation FAULT\n");
+            break;
+        case 10:
+            Arm64TrapScreenRoutine("[SW-A10] Kernel entry VA readable\n");
+            break;
         default:
             break;
     }
