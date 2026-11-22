@@ -175,6 +175,25 @@ Arm64JumpToKernel:
     tbnz x22, #0, .Lswitch_entry_va_fault
     SWITCH_ASM_MARK 10
 #endif
+
+/*
+ * R6.4 opt-in: deliberately raise a synchronous exception just before
+ * entering NT, after TTBR0 identity mappings were cleared. The existing
+ * ARM64 exception vectors should report BRK ESR/ELR on the framebuffer.
+ * If no trap appears, investigate VBAR/stack/page-table mappings first.
+ *
+ * IMPORTANT: This mode intentionally DOES NOT BOOT THE KERNEL. Never enable
+ * it in a normal LiberNT image. It is a diagnostic-only build switch.
+ */
+#if defined(LIBERNT_SWITCH_ENTRY_BRK_PROBE) && !defined(LIBERNT_SWITCH_HANDOFF_TRACE)
+#error "ENTRY_BRK_PROBE requires LIBERNT_SWITCH_HANDOFF_TRACE"
+#endif
+#ifdef LIBERNT_SWITCH_ENTRY_BRK_PROBE
+    brk #0x4e54       /* marker 'NT', ESR_EL1.EC expected 0x3c at EL1 */
+.Lswitch_brk_probe_halt:
+    wfe
+    b .Lswitch_brk_probe_halt
+#endif
     br x19
 
     /* Should never reach here */
