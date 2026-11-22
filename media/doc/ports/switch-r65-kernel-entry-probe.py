@@ -3,7 +3,8 @@
 import ctypes, hashlib, importlib.util, os, struct, sys
 from pathlib import Path
 
-ROOT=Path(os.environ['TEMP'])/'LiberNT-R641-checksum'/'switch-r641-bootmgr-checksum.py'
+LOCAL=Path(__file__).with_name('switch-r641-bootmgr-checksum.py')
+ROOT=LOCAL if LOCAL.exists() else Path(os.environ['TEMP'])/'LiberNT-R641-checksum'/'switch-r641-bootmgr-checksum.py'
 sp=importlib.util.spec_from_file_location('r641',ROOT)
 old=importlib.util.module_from_spec(sp);sp.loader.exec_module(old)
 L=Path('L:/Windows/System32'); D=Path('D:/EFI/LiberNT/Experiments')
